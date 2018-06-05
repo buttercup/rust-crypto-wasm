@@ -1,0 +1,4 @@
+[[package]]
+name = "rust-crypto-wasm"
+version = "0.2.36"
+
