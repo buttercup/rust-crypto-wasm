@@ -1,6 +1,6 @@
 [package]
-name = "rust-crypto"
-version = "0.2.36"
+name = "rust-crypto-wasm"
+version = "0.3.1"
 authors = ["The Rust-Crypto Project Developers"]
 license = "MIT/Apache-2.0"
 homepage = "https://github.com/DaGenix/rust-crypto/"
@@ -20,7 +20,7 @@ with-bench = []
 gcc = "^0.3"
 
 [dependencies]
-libc = "^0.2"
+libc = { version = "^0.2", default-features = false }
 time = "^0.1"
 rand = "^0.3"
 base64 = "^0.5"

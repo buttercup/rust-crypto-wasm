@@ -18,6 +18,7 @@ pub fn supports_aesni() -> bool {
     }
 }
 
+#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
 extern {
     pub fn rust_crypto_util_fixed_time_eq_asm(
             lhsp: *const u8,
@@ -29,6 +30,7 @@ extern {
             count: libc::size_t);
 }
 
+#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
 pub fn secure_memset(dst: &mut [u8], val: u8) {
     unsafe {
         rust_crypto_util_secure_memset(
@@ -40,6 +42,7 @@ pub fn secure_memset(dst: &mut [u8], val: u8) {
 
 /// Compare two vectors using a fixed number of operations. If the two vectors are not of equal
 /// length, the function returns false immediately.
+#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
 pub fn fixed_time_eq(lhs: &[u8], rhs: &[u8]) -> bool {
     if lhs.len() != rhs.len() {
         false
@@ -51,6 +54,30 @@ pub fn fixed_time_eq(lhs: &[u8], rhs: &[u8]) -> bool {
             let rhsp = rhs.get_unchecked(0);
             rust_crypto_util_fixed_time_eq_asm(lhsp, rhsp, count) == 0
         }
+    }
+}
+
+#[cfg(all(not(target_arch = "x86"), not(target_arch = "x86_64")))]
+pub fn secure_memset(dst: &mut [u8], val: u8) {
+    for i in 0..dst.len() {
+        dst[i] = val;
+    }
+}
+
+/// Compare two vectors using a fixed number of operations. If the two vectors are not of equal
+/// length, the function returns false immediately.
+#[cfg(all(not(target_arch = "x86"), not(target_arch = "x86_64")))]
+pub fn fixed_time_eq(lhs: &[u8], rhs: &[u8]) -> bool {
+    if lhs.len() != rhs.len() {
+        false
+    } else {
+        let mut v = 0;
+        for i in 0..lhs.len() {
+            let a = lhs[i];
+            let b = rhs[i];
+            v = v | (a ^ b);
+        };
+        v == 0
     }
 }
 
