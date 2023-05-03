@@ -20,7 +20,7 @@ To use Rust-Crypto, add the following to your Cargo.toml:
 
 ```toml
 [dependencies]
-rust-crypto = "^0.2"
+rust-crypto-wasm = "^0.3"
 ```
 
 and the following to your crate root:

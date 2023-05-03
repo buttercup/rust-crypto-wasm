@@ -61,17 +61,17 @@ void rust_crypto_aesni_setup_working_key_128(
             \
             1: \
             pshufd $0xff, %%xmm2, %%xmm2; \
-            vpslldq $0x04, %%xmm1, %%xmm3; \
+            movdqa %%xmm1, %%xmm3; \
+            pslldq $0x04, %%xmm3; \
             pxor %%xmm3, %%xmm1; \
-            vpslldq $0x4, %%xmm1, %%xmm3; \
+            pslldq $0x04, %%xmm3; \
             pxor %%xmm3, %%xmm1; \
-            vpslldq $0x04, %%xmm1, %%xmm3; \
+            pslldq $0x04, %%xmm3; \
             pxor %%xmm3, %%xmm1; \
             pxor %%xmm2, %%xmm1; \
             movdqu %%xmm1, (%0); \
             add $0x10, %0; \
-            ret; \
-            \
+            ret; \            \
             2: \
         "
     : "+r" (round_key)
