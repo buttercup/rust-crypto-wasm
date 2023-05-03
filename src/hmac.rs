@@ -123,7 +123,6 @@ impl<D: Digest> Mac for Hmac<D> {
 mod test {
     use std::iter::repeat;
 
-    use digest::Digest;
     use hmac::Hmac;
     use mac::{Mac, MacResult};
     use md5::Md5;
