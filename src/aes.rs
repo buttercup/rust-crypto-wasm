@@ -28,7 +28,7 @@ pub fn ecb_encryptor<X: PaddingProcessor + Send + 'static>(
     key_size: KeySize,
     key: &[u8],
     padding: X,
-) -> Box<Encryptor> {
+) -> Box<dyn Encryptor> {
     if util::supports_aesni() {
         let aes_enc = aesni::AesNiEncryptor::new(key_size, key);
         let enc = Box::new(EcbEncryptor::new(aes_enc, padding));
@@ -86,7 +86,7 @@ pub fn ecb_decryptor<X: PaddingProcessor + Send + 'static>(
     key_size: KeySize,
     key: &[u8],
     padding: X,
-) -> Box<Decryptor> {
+) -> Box<dyn Decryptor> {
     if util::supports_aesni() {
         let aes_dec = aesni::AesNiDecryptor::new(key_size, key);
         let dec = Box::new(EcbDecryptor::new(aes_dec, padding));
@@ -145,7 +145,7 @@ pub fn cbc_encryptor<X: PaddingProcessor + Send + 'static>(
     key: &[u8],
     iv: &[u8],
     padding: X,
-) -> Box<Encryptor + 'static> {
+) -> Box<dyn Encryptor + 'static> {
     if util::supports_aesni() {
         let aes_enc = aesni::AesNiEncryptor::new(key_size, key);
         let enc = Box::new(CbcEncryptor::new(aes_enc, padding, iv.to_vec()));
@@ -205,7 +205,7 @@ pub fn cbc_decryptor<X: PaddingProcessor + Send + 'static>(
     key: &[u8],
     iv: &[u8],
     padding: X,
-) -> Box<Decryptor + 'static> {
+) -> Box<dyn Decryptor + 'static> {
     if util::supports_aesni() {
         let aes_dec = aesni::AesNiDecryptor::new(key_size, key);
         let dec = Box::new(CbcDecryptor::new(aes_dec, padding, iv.to_vec()));
@@ -260,7 +260,7 @@ pub fn cbc_decryptor<X: PaddingProcessor + Send + 'static>(
 
 /// Get the best implementation of a Ctr
 #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-pub fn ctr(key_size: KeySize, key: &[u8], iv: &[u8]) -> Box<SynchronousStreamCipher + 'static> {
+pub fn ctr(key_size: KeySize, key: &[u8], iv: &[u8]) -> Box<dyn SynchronousStreamCipher + 'static> {
     if util::supports_aesni() {
         let aes_dec = aesni::AesNiEncryptor::new(key_size, key);
         let dec = Box::new(CtrMode::new(aes_dec, iv.to_vec()));
