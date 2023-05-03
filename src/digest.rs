@@ -74,7 +74,7 @@ pub trait Digest {
     fn result_str(&mut self) -> String {
         use hex::ToHex;
 
-        let mut buf: Vec<u8> = repeat(0).take((self.output_bits()+7)/8).collect();
+        let mut buf: Vec<u8> = repeat(0).take((self.output_bits() + 7) / 8).collect();
         self.result(&mut buf);
         (&buf[..]).to_hex()
     }

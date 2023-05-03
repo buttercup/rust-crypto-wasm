@@ -12,14 +12,14 @@
  *       http://www.tarsnap.com/scrypt/scrypt.pdf
  */
 
-use std;
-use std::iter::repeat;
-use std::io;
-use std::mem::size_of;
 use cryptoutil::copy_memory;
+use std;
+use std::io;
+use std::iter::repeat;
+use std::mem::size_of;
 
-use rand::{OsRng, Rng};
 use base64;
+use rand::{OsRng, Rng};
 
 use cryptoutil::{read_u32_le, read_u32v_le, write_u32_le};
 use hmac::Hmac;
@@ -29,7 +29,6 @@ use util::fixed_time_eq;
 
 // The salsa20/8 core function.
 fn salsa20_8(input: &[u8], output: &mut [u8]) {
-
     let mut x = [0u32; 16];
     read_u32v_le(&mut x, input);
 
@@ -81,7 +80,8 @@ fn salsa20_8(input: &[u8], output: &mut [u8]) {
     for i in 0..16 {
         write_u32_le(
             &mut output[i * 4..(i + 1) * 4],
-            x[i].wrapping_add(read_u32_le(&input[i * 4..(i + 1) * 4])));
+            x[i].wrapping_add(read_u32_le(&input[i * 4..(i + 1) * 4])),
+        );
     }
 }
 
@@ -103,7 +103,11 @@ fn scrypt_block_mix(input: &[u8], output: &mut [u8]) {
     for (i, chunk) in input.chunks(64).enumerate() {
         xor(&x, chunk, &mut t);
         salsa20_8(&t, &mut x);
-        let pos = if i % 2 == 0 { (i / 2) * 64 } else { (i / 2) * 64 + input.len() / 2 };
+        let pos = if i % 2 == 0 {
+            (i / 2) * 64
+        } else {
+            (i / 2) * 64 + input.len() / 2
+        };
         copy_memory(&x, &mut output[pos..pos + 64]);
     }
 }
@@ -145,7 +149,7 @@ fn scrypt_ro_mix(b: &mut [u8], v: &mut [u8], t: &mut [u8], n: usize) {
 pub struct ScryptParams {
     log_n: u8,
     r: u32,
-    p: u32
+    p: u32,
 }
 
 impl ScryptParams {
@@ -164,7 +168,10 @@ impl ScryptParams {
         assert!(p > 0);
         assert!(log_n > 0);
         assert!((log_n as usize) < size_of::<usize>() * 8);
-        assert!(size_of::<usize>() >= size_of::<u32>() || (r <= std::usize::MAX as u32 && p < std::usize::MAX as u32));
+        assert!(
+            size_of::<usize>() >= size_of::<u32>()
+                || (r <= std::usize::MAX as u32 && p < std::usize::MAX as u32)
+        );
 
         let r = r as usize;
         let p = p as usize;
@@ -174,19 +181,19 @@ impl ScryptParams {
         // check that r * 128 doesn't overflow
         let r128 = match r.checked_mul(128) {
             Some(x) => x,
-            None => panic!("Invalid Scrypt parameters.")
+            None => panic!("Invalid Scrypt parameters."),
         };
 
         // check that n * r * 128 doesn't overflow
         match r128.checked_mul(n) {
-            Some(_) => { },
-            None => panic!("Invalid Scrypt parameters.")
+            Some(_) => {}
+            None => panic!("Invalid Scrypt parameters."),
         };
 
         // check that p * r * 128 doesn't overflow
         match r128.checked_mul(p) {
-            Some(_) => { },
-            None => panic!("Invalid Scrypt parameters.")
+            Some(_) => {}
+            None => panic!("Invalid Scrypt parameters."),
         };
 
         // This check required by Scrypt:
@@ -203,7 +210,7 @@ impl ScryptParams {
         ScryptParams {
             log_n: log_n,
             r: r as u32,
-            p: p as u32
+            p: p as u32,
         }
     }
 }
@@ -321,14 +328,22 @@ pub fn scrypt_check(password: &str, hashed_value: &str) -> Result<bool, &'static
 
     // Check that there are no characters before the first "$"
     match iter.next() {
-        Some(x) => if x != "" { return Err(ERR_STR); },
-        None => return Err(ERR_STR)
+        Some(x) => {
+            if x != "" {
+                return Err(ERR_STR);
+            }
+        }
+        None => return Err(ERR_STR),
     }
 
     // Check the name
     match iter.next() {
-        Some(t) => if t != "rscrypt" { return Err(ERR_STR); },
-        None => return Err(ERR_STR)
+        Some(t) => {
+            if t != "rscrypt" {
+                return Err(ERR_STR);
+            }
+        }
+        None => return Err(ERR_STR),
     }
 
     // Parse format - currenlty only version 0 (compact) and 1 (expanded) are supported
@@ -340,59 +355,67 @@ pub fn scrypt_check(password: &str, hashed_value: &str) -> Result<bool, &'static
             let pvec = match iter.next() {
                 Some(pstr) => match base64::decode(pstr) {
                     Ok(x) => x,
-                    Err(_) => return Err(ERR_STR)
+                    Err(_) => return Err(ERR_STR),
                 },
-                None => return Err(ERR_STR)
+                None => return Err(ERR_STR),
             };
             match fstr {
                 "0" => {
-                    if pvec.len() != 3 { return Err(ERR_STR); }
+                    if pvec.len() != 3 {
+                        return Err(ERR_STR);
+                    }
                     let log_n = pvec[0];
                     let r = pvec[1] as u32;
                     let p = pvec[2] as u32;
                     params = ScryptParams::new(log_n, r, p);
                 }
                 "1" => {
-                    if pvec.len() != 9 { return Err(ERR_STR); }
+                    if pvec.len() != 9 {
+                        return Err(ERR_STR);
+                    }
                     let log_n = pvec[0];
                     let mut pval = [0u32; 2];
                     read_u32v_le(&mut pval, &pvec[1..9]);
                     params = ScryptParams::new(log_n, pval[0], pval[1]);
                 }
-                _ => return Err(ERR_STR)
+                _ => return Err(ERR_STR),
             }
         }
-        None => return Err(ERR_STR)
+        None => return Err(ERR_STR),
     }
 
     // Salt
     let salt = match iter.next() {
         Some(sstr) => match base64::decode(sstr) {
             Ok(salt) => salt,
-            Err(_) => return Err(ERR_STR)
+            Err(_) => return Err(ERR_STR),
         },
-        None => return Err(ERR_STR)
+        None => return Err(ERR_STR),
     };
 
     // Hashed value
     let hash = match iter.next() {
         Some(hstr) => match base64::decode(hstr) {
             Ok(hash) => hash,
-            Err(_) => return Err(ERR_STR)
+            Err(_) => return Err(ERR_STR),
         },
-        None => return Err(ERR_STR)
+        None => return Err(ERR_STR),
     };
 
     // Make sure that the input ends with a "$"
     match iter.next() {
-        Some(x) => if x != "" { return Err(ERR_STR); },
-        None => return Err(ERR_STR)
+        Some(x) => {
+            if x != "" {
+                return Err(ERR_STR);
+            }
+        }
+        None => return Err(ERR_STR),
     }
 
     // Make sure there is no trailing data after the final "$"
     match iter.next() {
         Some(_) => return Err(ERR_STR),
-        None => { }
+        None => {}
     }
 
     let mut output: Vec<u8> = repeat(0).take(hash.len()).collect();
@@ -409,7 +432,7 @@ pub fn scrypt_check(password: &str, hashed_value: &str) -> Result<bool, &'static
 mod test {
     use std::iter::repeat;
 
-    use scrypt::{scrypt, scrypt_simple, scrypt_check, ScryptParams};
+    use scrypt::{scrypt, scrypt_check, scrypt_simple, ScryptParams};
 
     struct Test {
         password: &'static str,
@@ -417,7 +440,7 @@ mod test {
         log_n: u8,
         r: u32,
         p: u32,
-        expected: Vec<u8>
+        expected: Vec<u8>,
     }
 
     // Test vectors from [1]. The last test vector is omitted because it takes too long to run.
@@ -431,14 +454,12 @@ mod test {
                 r: 1,
                 p: 1,
                 expected: vec![
-                    0x77, 0xd6, 0x57, 0x62, 0x38, 0x65, 0x7b, 0x20,
-                    0x3b, 0x19, 0xca, 0x42, 0xc1, 0x8a, 0x04, 0x97,
-                    0xf1, 0x6b, 0x48, 0x44, 0xe3, 0x07, 0x4a, 0xe8,
-                    0xdf, 0xdf, 0xfa, 0x3f, 0xed, 0xe2, 0x14, 0x42,
-                    0xfc, 0xd0, 0x06, 0x9d, 0xed, 0x09, 0x48, 0xf8,
-                    0x32, 0x6a, 0x75, 0x3a, 0x0f, 0xc8, 0x1f, 0x17,
-                    0xe8, 0xd3, 0xe0, 0xfb, 0x2e, 0x0d, 0x36, 0x28,
-                    0xcf, 0x35, 0xe2, 0x0c, 0x38, 0xd1, 0x89, 0x06 ]
+                    0x77, 0xd6, 0x57, 0x62, 0x38, 0x65, 0x7b, 0x20, 0x3b, 0x19, 0xca, 0x42, 0xc1,
+                    0x8a, 0x04, 0x97, 0xf1, 0x6b, 0x48, 0x44, 0xe3, 0x07, 0x4a, 0xe8, 0xdf, 0xdf,
+                    0xfa, 0x3f, 0xed, 0xe2, 0x14, 0x42, 0xfc, 0xd0, 0x06, 0x9d, 0xed, 0x09, 0x48,
+                    0xf8, 0x32, 0x6a, 0x75, 0x3a, 0x0f, 0xc8, 0x1f, 0x17, 0xe8, 0xd3, 0xe0, 0xfb,
+                    0x2e, 0x0d, 0x36, 0x28, 0xcf, 0x35, 0xe2, 0x0c, 0x38, 0xd1, 0x89, 0x06,
+                ],
             },
             Test {
                 password: "password",
@@ -447,14 +468,12 @@ mod test {
                 r: 8,
                 p: 16,
                 expected: vec![
-                    0xfd, 0xba, 0xbe, 0x1c, 0x9d, 0x34, 0x72, 0x00,
-                    0x78, 0x56, 0xe7, 0x19, 0x0d, 0x01, 0xe9, 0xfe,
-                    0x7c, 0x6a, 0xd7, 0xcb, 0xc8, 0x23, 0x78, 0x30,
-                    0xe7, 0x73, 0x76, 0x63, 0x4b, 0x37, 0x31, 0x62,
-                    0x2e, 0xaf, 0x30, 0xd9, 0x2e, 0x22, 0xa3, 0x88,
-                    0x6f, 0xf1, 0x09, 0x27, 0x9d, 0x98, 0x30, 0xda,
-                    0xc7, 0x27, 0xaf, 0xb9, 0x4a, 0x83, 0xee, 0x6d,
-                    0x83, 0x60, 0xcb, 0xdf, 0xa2, 0xcc, 0x06, 0x40 ]
+                    0xfd, 0xba, 0xbe, 0x1c, 0x9d, 0x34, 0x72, 0x00, 0x78, 0x56, 0xe7, 0x19, 0x0d,
+                    0x01, 0xe9, 0xfe, 0x7c, 0x6a, 0xd7, 0xcb, 0xc8, 0x23, 0x78, 0x30, 0xe7, 0x73,
+                    0x76, 0x63, 0x4b, 0x37, 0x31, 0x62, 0x2e, 0xaf, 0x30, 0xd9, 0x2e, 0x22, 0xa3,
+                    0x88, 0x6f, 0xf1, 0x09, 0x27, 0x9d, 0x98, 0x30, 0xda, 0xc7, 0x27, 0xaf, 0xb9,
+                    0x4a, 0x83, 0xee, 0x6d, 0x83, 0x60, 0xcb, 0xdf, 0xa2, 0xcc, 0x06, 0x40,
+                ],
             },
             Test {
                 password: "pleaseletmein",
@@ -463,14 +482,12 @@ mod test {
                 r: 8,
                 p: 1,
                 expected: vec![
-                    0x70, 0x23, 0xbd, 0xcb, 0x3a, 0xfd, 0x73, 0x48,
-                    0x46, 0x1c, 0x06, 0xcd, 0x81, 0xfd, 0x38, 0xeb,
-                    0xfd, 0xa8, 0xfb, 0xba, 0x90, 0x4f, 0x8e, 0x3e,
-                    0xa9, 0xb5, 0x43, 0xf6, 0x54, 0x5d, 0xa1, 0xf2,
-                    0xd5, 0x43, 0x29, 0x55, 0x61, 0x3f, 0x0f, 0xcf,
-                    0x62, 0xd4, 0x97, 0x05, 0x24, 0x2a, 0x9a, 0xf9,
-                    0xe6, 0x1e, 0x85, 0xdc, 0x0d, 0x65, 0x1e, 0x40,
-                    0xdf, 0xcf, 0x01, 0x7b, 0x45, 0x57, 0x58, 0x87 ]
+                    0x70, 0x23, 0xbd, 0xcb, 0x3a, 0xfd, 0x73, 0x48, 0x46, 0x1c, 0x06, 0xcd, 0x81,
+                    0xfd, 0x38, 0xeb, 0xfd, 0xa8, 0xfb, 0xba, 0x90, 0x4f, 0x8e, 0x3e, 0xa9, 0xb5,
+                    0x43, 0xf6, 0x54, 0x5d, 0xa1, 0xf2, 0xd5, 0x43, 0x29, 0x55, 0x61, 0x3f, 0x0f,
+                    0xcf, 0x62, 0xd4, 0x97, 0x05, 0x24, 0x2a, 0x9a, 0xf9, 0xe6, 0x1e, 0x85, 0xdc,
+                    0x0d, 0x65, 0x1e, 0x40, 0xdf, 0xcf, 0x01, 0x7b, 0x45, 0x57, 0x58, 0x87,
+                ],
             },
         ]
     }
@@ -481,7 +498,12 @@ mod test {
         for t in tests.iter() {
             let mut result: Vec<u8> = repeat(0).take(t.expected.len()).collect();
             let params = ScryptParams::new(t.log_n, t.r, t.p);
-            scrypt(t.password.as_bytes(), t.salt.as_bytes(), &params, &mut result);
+            scrypt(
+                t.password.as_bytes(),
+                t.salt.as_bytes(),
+                &params,
+                &mut result,
+            );
             assert!(result == t.expected);
         }
     }
@@ -499,20 +521,20 @@ mod test {
 
         match scrypt_check(password, &out1[..]) {
             Ok(r) => assert!(r),
-            Err(_) => panic!()
+            Err(_) => panic!(),
         }
         match scrypt_check(password, &out2[..]) {
             Ok(r) => assert!(r),
-            Err(_) => panic!()
+            Err(_) => panic!(),
         }
 
         match scrypt_check("wrong", &out1[..]) {
             Ok(r) => assert!(!r),
-            Err(_) => panic!()
+            Err(_) => panic!(),
         }
         match scrypt_check("wrong", &out2[..]) {
             Ok(r) => assert!(!r),
-            Err(_) => panic!()
+            Err(_) => panic!(),
         }
     }
 

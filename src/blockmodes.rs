@@ -11,13 +11,17 @@
 use std::cmp;
 use std::iter::repeat;
 
-use buffer::{ReadBuffer, WriteBuffer, OwnedReadBuffer, OwnedWriteBuffer, BufferResult,
-    RefReadBuffer, RefWriteBuffer};
-use buffer::BufferResult::{BufferUnderflow, BufferOverflow};
+use buffer::BufferResult::{BufferOverflow, BufferUnderflow};
+use buffer::{
+    BufferResult, OwnedReadBuffer, OwnedWriteBuffer, ReadBuffer, RefReadBuffer, RefWriteBuffer,
+    WriteBuffer,
+};
 use cryptoutil::{self, symm_enc_or_dec};
-use symmetriccipher::{BlockEncryptor, BlockEncryptorX8, Encryptor, BlockDecryptor, Decryptor,
-    SynchronousStreamCipher, SymmetricCipherError};
-use symmetriccipher::SymmetricCipherError::{InvalidPadding, InvalidLength};
+use symmetriccipher::SymmetricCipherError::{InvalidLength, InvalidPadding};
+use symmetriccipher::{
+    BlockDecryptor, BlockEncryptor, BlockEncryptorX8, Decryptor, Encryptor, SymmetricCipherError,
+    SynchronousStreamCipher,
+};
 
 /// The BlockProcessor trait is used to implement modes that require processing complete blocks of
 /// data. The methods of this trait are called by the BlockEngine which is in charge of properly
@@ -50,7 +54,7 @@ enum BlockEngineState {
     LastInput,
     LastInput2,
     Finished,
-    Error(SymmetricCipherError)
+    Error(SymmetricCipherError),
 }
 
 /// BlockEngine buffers input and output data and handles sending complete block of data to the
@@ -86,25 +90,21 @@ struct BlockEngine<P, X> {
     padding: X,
 
     /// The current state of the operation.
-    state: BlockEngineState
+    state: BlockEngineState,
 }
 
 fn update_history(in_hist: &mut [u8], out_hist: &mut [u8], last_in: &[u8], last_out: &[u8]) {
     let in_hist_len = in_hist.len();
     if in_hist_len > 0 {
-        cryptoutil::copy_memory(
-            &last_in[last_in.len() - in_hist_len..],
-            in_hist);
+        cryptoutil::copy_memory(&last_in[last_in.len() - in_hist_len..], in_hist);
     }
     let out_hist_len = out_hist.len();
     if out_hist_len > 0 {
-        cryptoutil::copy_memory(
-            &last_out[last_out.len() - out_hist_len..],
-            out_hist);
+        cryptoutil::copy_memory(&last_out[last_out.len() - out_hist_len..], out_hist);
     }
 }
 
-impl <P: BlockProcessor, X: PaddingProcessor> BlockEngine<P, X> {
+impl<P: BlockProcessor, X: PaddingProcessor> BlockEngine<P, X> {
     /// Create a new BlockProcessor instance with the given processor and block_size. No history
     /// will be saved.
     fn new(processor: P, padding: X, block_size: usize) -> BlockEngine<P, X> {
@@ -117,18 +117,19 @@ impl <P: BlockProcessor, X: PaddingProcessor> BlockEngine<P, X> {
             out_read_scratch: None,
             processor: processor,
             padding: padding,
-            state: BlockEngineState::FastMode
+            state: BlockEngineState::FastMode,
         }
     }
 
     /// Create a new BlockProcessor instance with the given processor, block_size, and initial input
     /// and output history.
     fn new_with_history(
-            processor: P,
-            padding: X,
-            block_size: usize,
-            in_hist: Vec<u8>,
-            out_hist: Vec<u8>) -> BlockEngine<P, X> {
+        processor: P,
+        padding: X,
+        block_size: usize,
+        in_hist: Vec<u8>,
+        out_hist: Vec<u8>,
+    ) -> BlockEngine<P, X> {
         BlockEngine {
             in_hist: in_hist,
             out_hist: out_hist,
@@ -140,19 +141,21 @@ impl <P: BlockProcessor, X: PaddingProcessor> BlockEngine<P, X> {
     /// do the bulk of its work in FastMode. Significantly, FastMode avoids doing copies as much as
     /// possible. The FastMode state does not handle the final block of data.
     fn fast_mode<R: ReadBuffer, W: WriteBuffer>(
-            &mut self,
-            input: &mut R,
-            output: &mut W) -> BlockEngineState {
+        &mut self,
+        input: &mut R,
+        output: &mut W,
+    ) -> BlockEngineState {
         fn has_next<R: ReadBuffer, W: WriteBuffer>(
-                input: &mut R,
-                output: &mut W,
-                block_size: usize) -> bool {
+            input: &mut R,
+            output: &mut W,
+            block_size: usize,
+        ) -> bool {
             // Not the greater than - very important since this method must never process the last
             // block.
             let enough_input = input.remaining() > block_size;
             let enough_output = output.remaining() >= block_size;
             enough_input && enough_output
-        };
+        }
         fn split_at<'a>(vec: &'a [u8], at: usize) -> (&'a [u8], &'a [u8]) {
             (&vec[..at], &vec[at..])
         }
@@ -168,11 +171,8 @@ impl <P: BlockProcessor, X: PaddingProcessor> BlockEngine<P, X> {
         } else {
             let next_in = input.take_next(self.block_size);
             let next_out = output.take_next(self.block_size);
-            self.processor.process_block(
-                &self.in_hist[..],
-                &self.out_hist[..],
-                next_in,
-                next_out);
+            self.processor
+                .process_block(&self.in_hist[..], &self.out_hist[..], next_in, next_out);
         }
 
         // Process all remaing blocks. We can pull the history out of the buffers without having to
@@ -183,13 +183,11 @@ impl <P: BlockProcessor, X: PaddingProcessor> BlockEngine<P, X> {
             input.rewind(self.in_hist.len());
             let (in_hist, next_in) = split_at(input.take_next(next_in_size), self.in_hist.len());
             output.rewind(self.out_hist.len());
-            let (out_hist, next_out) = output.take_next(next_out_size).split_at_mut(
-                self.out_hist.len());
-            self.processor.process_block(
-                in_hist,
-                out_hist,
-                next_in,
-                next_out);
+            let (out_hist, next_out) = output
+                .take_next(next_out_size)
+                .split_at_mut(self.out_hist.len());
+            self.processor
+                .process_block(in_hist, out_hist, next_in, next_out);
         }
 
         // Save the history and then transition to the next state
@@ -198,11 +196,7 @@ impl <P: BlockProcessor, X: PaddingProcessor> BlockEngine<P, X> {
             let last_in = input.take_next(self.in_hist.len());
             output.rewind(self.out_hist.len());
             let last_out = output.take_next(self.out_hist.len());
-            update_history(
-                &mut self.in_hist,
-                &mut self.out_hist,
-                last_in,
-                last_out);
+            update_history(&mut self.in_hist, &mut self.out_hist, last_in, last_out);
         }
         if input.is_empty() {
             BlockEngineState::FastMode
@@ -213,10 +207,11 @@ impl <P: BlockProcessor, X: PaddingProcessor> BlockEngine<P, X> {
 
     /// This method implements the BlockEngine state machine.
     fn process<R: ReadBuffer, W: WriteBuffer>(
-            &mut self,
-            input: &mut R,
-            output: &mut W,
-            eof: bool) -> Result<BufferResult, SymmetricCipherError> {
+        &mut self,
+        input: &mut R,
+        output: &mut W,
+        eof: bool,
+    ) -> Result<BufferResult, SymmetricCipherError> {
         // Process a block of data from in_scratch and write the result to out_write_scratch.
         // Finally, convert out_write_scratch into out_read_scratch.
         fn process_scratch<P: BlockProcessor, X: PaddingProcessor>(me: &mut BlockEngine<P, X>) {
@@ -226,21 +221,14 @@ impl <P: BlockProcessor, X: PaddingProcessor> BlockEngine<P, X> {
             {
                 let next_in = rin.take_remaining();
                 let next_out = wout.take_remaining();
-                me.processor.process_block(
-                    &me.in_hist[..],
-                    &me.out_hist[..],
-                    next_in,
-                    next_out);
-                update_history(
-                    &mut me.in_hist,
-                    &mut me.out_hist,
-                    next_in,
-                    next_out);
+                me.processor
+                    .process_block(&me.in_hist[..], &me.out_hist[..], next_in, next_out);
+                update_history(&mut me.in_hist, &mut me.out_hist, next_in, next_out);
             }
 
             let rb = wout.into_read_buffer();
             me.out_read_scratch = Some(rb);
-        };
+        }
 
         loop {
             match self.state {
@@ -328,7 +316,10 @@ impl <P: BlockProcessor, X: PaddingProcessor> BlockEngine<P, X> {
                         self.padding.pad_input(&mut self.in_scratch);
                         if self.in_scratch.is_full() {
                             process_scratch(self);
-                            if self.padding.strip_output(self.out_read_scratch.as_mut().unwrap()) {
+                            if self
+                                .padding
+                                .strip_output(self.out_read_scratch.as_mut().unwrap())
+                            {
                                 self.state = BlockEngineState::Finished;
                             } else {
                                 self.state = BlockEngineState::Error(InvalidPadding);
@@ -344,7 +335,10 @@ impl <P: BlockProcessor, X: PaddingProcessor> BlockEngine<P, X> {
                         if self.in_scratch.is_full() {
                             self.state = BlockEngineState::LastInput2;
                         } else if self.in_scratch.is_empty() {
-                            if self.padding.strip_output(self.out_read_scratch.as_mut().unwrap()) {
+                            if self
+                                .padding
+                                .strip_output(self.out_read_scratch.as_mut().unwrap())
+                            {
                                 self.state = BlockEngineState::Finished;
                             } else {
                                 self.state = BlockEngineState::Error(InvalidPadding);
@@ -364,7 +358,10 @@ impl <P: BlockProcessor, X: PaddingProcessor> BlockEngine<P, X> {
                     if rout.is_empty() {
                         self.out_write_scratch = Some(rout.into_write_buffer());
                         process_scratch(self);
-                        if self.padding.strip_output(self.out_read_scratch.as_mut().unwrap()) {
+                        if self
+                            .padding
+                            .strip_output(self.out_read_scratch.as_mut().unwrap())
+                        {
                             self.state = BlockEngineState::Finished;
                         } else {
                             self.state = BlockEngineState::Error(InvalidPadding);
@@ -377,19 +374,19 @@ impl <P: BlockProcessor, X: PaddingProcessor> BlockEngine<P, X> {
 
                 // The Finished mode just writes the data in out_scratch to the output until there
                 // is no more data left.
-                BlockEngineState::Finished => {
-                    match self.out_read_scratch {
-                        Some(ref mut rout) => {
-                            rout.push_to(output);
-                            if rout.is_empty() {
-                                return Ok(BufferUnderflow);
-                            } else {
-                                return Ok(BufferOverflow);
-                            }
+                BlockEngineState::Finished => match self.out_read_scratch {
+                    Some(ref mut rout) => {
+                        rout.push_to(output);
+                        if rout.is_empty() {
+                            return Ok(BufferUnderflow);
+                        } else {
+                            return Ok(BufferOverflow);
                         }
-                        None => { return Ok(BufferUnderflow); }
                     }
-                }
+                    None => {
+                        return Ok(BufferUnderflow);
+                    }
+                },
 
                 // The Error state is used to store error information.
                 BlockEngineState::Error(err) => {
@@ -421,8 +418,10 @@ impl <P: BlockProcessor, X: PaddingProcessor> BlockEngine<P, X> {
 pub struct NoPadding;
 
 impl PaddingProcessor for NoPadding {
-    fn pad_input<W: WriteBuffer>(&mut self, _: &mut W) { }
-    fn strip_output<R: ReadBuffer>(&mut self, _: &mut R) -> bool { true }
+    fn pad_input<W: WriteBuffer>(&mut self, _: &mut W) {}
+    fn strip_output<R: ReadBuffer>(&mut self, _: &mut R) -> bool {
+        true
+    }
 }
 
 /// PKCS padding mode for ECB and CBC encryption
@@ -462,37 +461,47 @@ impl PaddingProcessor for PkcsPadding {
 
 /// Wraps a PaddingProcessor so that only pad_input() will actually be called.
 pub struct EncPadding<X> {
-    padding: X
+    padding: X,
 }
 
-impl <X: PaddingProcessor> EncPadding<X> {
-    fn wrap(p: X) -> EncPadding<X> { EncPadding { padding: p } }
+impl<X: PaddingProcessor> EncPadding<X> {
+    fn wrap(p: X) -> EncPadding<X> {
+        EncPadding { padding: p }
+    }
 }
 
-impl <X: PaddingProcessor> PaddingProcessor for EncPadding<X> {
-    fn pad_input<W: WriteBuffer>(&mut self, a: &mut W) { self.padding.pad_input(a); }
-    fn strip_output<R: ReadBuffer>(&mut self, _: &mut R) -> bool { true }
+impl<X: PaddingProcessor> PaddingProcessor for EncPadding<X> {
+    fn pad_input<W: WriteBuffer>(&mut self, a: &mut W) {
+        self.padding.pad_input(a);
+    }
+    fn strip_output<R: ReadBuffer>(&mut self, _: &mut R) -> bool {
+        true
+    }
 }
 
 /// Wraps a PaddingProcessor so that only strip_output() will actually be called.
 pub struct DecPadding<X> {
-    padding: X
+    padding: X,
 }
 
-impl <X: PaddingProcessor> DecPadding<X> {
-    fn wrap(p: X) -> DecPadding<X> { DecPadding { padding: p } }
+impl<X: PaddingProcessor> DecPadding<X> {
+    fn wrap(p: X) -> DecPadding<X> {
+        DecPadding { padding: p }
+    }
 }
 
-impl <X: PaddingProcessor> PaddingProcessor for DecPadding<X> {
-    fn pad_input<W: WriteBuffer>(&mut self, _: &mut W) { }
-    fn strip_output<R: ReadBuffer>(&mut self, a: &mut R) -> bool { self.padding.strip_output(a) }
+impl<X: PaddingProcessor> PaddingProcessor for DecPadding<X> {
+    fn pad_input<W: WriteBuffer>(&mut self, _: &mut W) {}
+    fn strip_output<R: ReadBuffer>(&mut self, a: &mut R) -> bool {
+        self.padding.strip_output(a)
+    }
 }
 
 struct EcbEncryptorProcessor<T> {
-    algo: T
+    algo: T,
 }
 
-impl <T: BlockEncryptor> BlockProcessor for EcbEncryptorProcessor<T> {
+impl<T: BlockEncryptor> BlockProcessor for EcbEncryptorProcessor<T> {
     fn process_block(&mut self, _: &[u8], _: &[u8], input: &[u8], output: &mut [u8]) {
         self.algo.encrypt_block(input, output);
     }
@@ -500,18 +509,16 @@ impl <T: BlockEncryptor> BlockProcessor for EcbEncryptorProcessor<T> {
 
 /// ECB Encryption mode
 pub struct EcbEncryptor<T, X> {
-    block_engine: BlockEngine<EcbEncryptorProcessor<T>, X>
+    block_engine: BlockEngine<EcbEncryptorProcessor<T>, X>,
 }
 
-impl <T: BlockEncryptor, X: PaddingProcessor> EcbEncryptor<T, X> {
+impl<T: BlockEncryptor, X: PaddingProcessor> EcbEncryptor<T, X> {
     /// Create a new ECB encryption mode object
     pub fn new(algo: T, padding: X) -> EcbEncryptor<T, EncPadding<X>> {
         let block_size = algo.block_size();
-        let processor = EcbEncryptorProcessor {
-            algo: algo
-        };
+        let processor = EcbEncryptorProcessor { algo: algo };
         EcbEncryptor {
-            block_engine: BlockEngine::new(processor, EncPadding::wrap(padding), block_size)
+            block_engine: BlockEngine::new(processor, EncPadding::wrap(padding), block_size),
         }
     }
     pub fn reset(&mut self) {
@@ -519,18 +526,22 @@ impl <T: BlockEncryptor, X: PaddingProcessor> EcbEncryptor<T, X> {
     }
 }
 
-impl <T: BlockEncryptor, X: PaddingProcessor> Encryptor for EcbEncryptor<T, X> {
-    fn encrypt(&mut self, input: &mut RefReadBuffer, output: &mut RefWriteBuffer, eof: bool)
-            -> Result<BufferResult, SymmetricCipherError> {
+impl<T: BlockEncryptor, X: PaddingProcessor> Encryptor for EcbEncryptor<T, X> {
+    fn encrypt(
+        &mut self,
+        input: &mut RefReadBuffer,
+        output: &mut RefWriteBuffer,
+        eof: bool,
+    ) -> Result<BufferResult, SymmetricCipherError> {
         self.block_engine.process(input, output, eof)
     }
 }
 
 struct EcbDecryptorProcessor<T> {
-    algo: T
+    algo: T,
 }
 
-impl <T: BlockDecryptor> BlockProcessor for EcbDecryptorProcessor<T> {
+impl<T: BlockDecryptor> BlockProcessor for EcbDecryptorProcessor<T> {
     fn process_block(&mut self, _: &[u8], _: &[u8], input: &[u8], output: &mut [u8]) {
         self.algo.decrypt_block(input, output);
     }
@@ -538,18 +549,16 @@ impl <T: BlockDecryptor> BlockProcessor for EcbDecryptorProcessor<T> {
 
 /// ECB Decryption mode
 pub struct EcbDecryptor<T, X> {
-    block_engine: BlockEngine<EcbDecryptorProcessor<T>, X>
+    block_engine: BlockEngine<EcbDecryptorProcessor<T>, X>,
 }
 
-impl <T: BlockDecryptor, X: PaddingProcessor> EcbDecryptor<T, X> {
+impl<T: BlockDecryptor, X: PaddingProcessor> EcbDecryptor<T, X> {
     /// Create a new ECB decryption mode object
     pub fn new(algo: T, padding: X) -> EcbDecryptor<T, DecPadding<X>> {
         let block_size = algo.block_size();
-        let processor = EcbDecryptorProcessor {
-            algo: algo
-        };
+        let processor = EcbDecryptorProcessor { algo: algo };
         EcbDecryptor {
-            block_engine: BlockEngine::new(processor, DecPadding::wrap(padding), block_size)
+            block_engine: BlockEngine::new(processor, DecPadding::wrap(padding), block_size),
         }
     }
     pub fn reset(&mut self) {
@@ -557,19 +566,23 @@ impl <T: BlockDecryptor, X: PaddingProcessor> EcbDecryptor<T, X> {
     }
 }
 
-impl <T: BlockDecryptor, X: PaddingProcessor> Decryptor for EcbDecryptor<T, X> {
-    fn decrypt(&mut self, input: &mut RefReadBuffer, output: &mut RefWriteBuffer, eof: bool)
-            -> Result<BufferResult, SymmetricCipherError> {
+impl<T: BlockDecryptor, X: PaddingProcessor> Decryptor for EcbDecryptor<T, X> {
+    fn decrypt(
+        &mut self,
+        input: &mut RefReadBuffer,
+        output: &mut RefWriteBuffer,
+        eof: bool,
+    ) -> Result<BufferResult, SymmetricCipherError> {
         self.block_engine.process(input, output, eof)
     }
 }
 
 struct CbcEncryptorProcessor<T> {
     algo: T,
-    temp: Vec<u8>
+    temp: Vec<u8>,
 }
 
-impl <T: BlockEncryptor> BlockProcessor for CbcEncryptorProcessor<T> {
+impl<T: BlockEncryptor> BlockProcessor for CbcEncryptorProcessor<T> {
     fn process_block(&mut self, _: &[u8], out_hist: &[u8], input: &[u8], output: &mut [u8]) {
         for ((&x, &y), o) in input.iter().zip(out_hist.iter()).zip(self.temp.iter_mut()) {
             *o = x ^ y;
@@ -580,16 +593,16 @@ impl <T: BlockEncryptor> BlockProcessor for CbcEncryptorProcessor<T> {
 
 /// CBC encryption mode
 pub struct CbcEncryptor<T, X> {
-    block_engine: BlockEngine<CbcEncryptorProcessor<T>, X>
+    block_engine: BlockEngine<CbcEncryptorProcessor<T>, X>,
 }
 
-impl <T: BlockEncryptor, X: PaddingProcessor> CbcEncryptor<T, X> {
+impl<T: BlockEncryptor, X: PaddingProcessor> CbcEncryptor<T, X> {
     /// Create a new CBC encryption mode object
     pub fn new(algo: T, padding: X, iv: Vec<u8>) -> CbcEncryptor<T, EncPadding<X>> {
         let block_size = algo.block_size();
         let processor = CbcEncryptorProcessor {
             algo: algo,
-            temp: repeat(0).take(block_size).collect()
+            temp: repeat(0).take(block_size).collect(),
         };
         CbcEncryptor {
             block_engine: BlockEngine::new_with_history(
@@ -597,7 +610,8 @@ impl <T: BlockEncryptor, X: PaddingProcessor> CbcEncryptor<T, X> {
                 EncPadding::wrap(padding),
                 block_size,
                 Vec::new(),
-                iv)
+                iv,
+            ),
         }
     }
     pub fn reset(&mut self, iv: &[u8]) {
@@ -605,19 +619,23 @@ impl <T: BlockEncryptor, X: PaddingProcessor> CbcEncryptor<T, X> {
     }
 }
 
-impl <T: BlockEncryptor, X: PaddingProcessor> Encryptor for CbcEncryptor<T, X> {
-    fn encrypt(&mut self, input: &mut RefReadBuffer, output: &mut RefWriteBuffer, eof: bool)
-            -> Result<BufferResult, SymmetricCipherError> {
+impl<T: BlockEncryptor, X: PaddingProcessor> Encryptor for CbcEncryptor<T, X> {
+    fn encrypt(
+        &mut self,
+        input: &mut RefReadBuffer,
+        output: &mut RefWriteBuffer,
+        eof: bool,
+    ) -> Result<BufferResult, SymmetricCipherError> {
         self.block_engine.process(input, output, eof)
     }
 }
 
 struct CbcDecryptorProcessor<T> {
     algo: T,
-    temp: Vec<u8>
+    temp: Vec<u8>,
 }
 
-impl <T: BlockDecryptor> BlockProcessor for CbcDecryptorProcessor<T> {
+impl<T: BlockDecryptor> BlockProcessor for CbcDecryptorProcessor<T> {
     fn process_block(&mut self, in_hist: &[u8], _: &[u8], input: &[u8], output: &mut [u8]) {
         self.algo.decrypt_block(input, &mut self.temp);
         for ((&x, &y), o) in self.temp.iter().zip(in_hist.iter()).zip(output.iter_mut()) {
@@ -628,16 +646,16 @@ impl <T: BlockDecryptor> BlockProcessor for CbcDecryptorProcessor<T> {
 
 /// CBC decryption mode
 pub struct CbcDecryptor<T, X> {
-    block_engine: BlockEngine<CbcDecryptorProcessor<T>, X>
+    block_engine: BlockEngine<CbcDecryptorProcessor<T>, X>,
 }
 
-impl <T: BlockDecryptor, X: PaddingProcessor> CbcDecryptor<T, X> {
+impl<T: BlockDecryptor, X: PaddingProcessor> CbcDecryptor<T, X> {
     /// Create a new CBC decryption mode object
     pub fn new(algo: T, padding: X, iv: Vec<u8>) -> CbcDecryptor<T, DecPadding<X>> {
         let block_size = algo.block_size();
         let processor = CbcDecryptorProcessor {
             algo: algo,
-            temp: repeat(0).take(block_size).collect()
+            temp: repeat(0).take(block_size).collect(),
         };
         CbcDecryptor {
             block_engine: BlockEngine::new_with_history(
@@ -645,7 +663,8 @@ impl <T: BlockDecryptor, X: PaddingProcessor> CbcDecryptor<T, X> {
                 DecPadding::wrap(padding),
                 block_size,
                 iv,
-                Vec::new())
+                Vec::new(),
+            ),
         }
     }
     pub fn reset(&mut self, iv: &[u8]) {
@@ -653,9 +672,13 @@ impl <T: BlockDecryptor, X: PaddingProcessor> CbcDecryptor<T, X> {
     }
 }
 
-impl <T: BlockDecryptor, X: PaddingProcessor> Decryptor for CbcDecryptor<T, X> {
-    fn decrypt(&mut self, input: &mut RefReadBuffer, output: &mut RefWriteBuffer, eof: bool)
-            -> Result<BufferResult, SymmetricCipherError> {
+impl<T: BlockDecryptor, X: PaddingProcessor> Decryptor for CbcDecryptor<T, X> {
+    fn decrypt(
+        &mut self,
+        input: &mut RefReadBuffer,
+        output: &mut RefWriteBuffer,
+        eof: bool,
+    ) -> Result<BufferResult, SymmetricCipherError> {
         self.block_engine.process(input, output, eof)
     }
 }
@@ -675,17 +698,17 @@ fn add_ctr(ctr: &mut [u8], mut ammount: u8) {
 pub struct CtrMode<A> {
     algo: A,
     ctr: Vec<u8>,
-    bytes: OwnedReadBuffer
+    bytes: OwnedReadBuffer,
 }
 
-impl <A: BlockEncryptor> CtrMode<A> {
+impl<A: BlockEncryptor> CtrMode<A> {
     /// Create a new CTR object
     pub fn new(algo: A, ctr: Vec<u8>) -> CtrMode<A> {
         let block_size = algo.block_size();
         CtrMode {
             algo: algo,
             ctr: ctr,
-            bytes: OwnedReadBuffer::new_with_len(repeat(0).take(block_size).collect(), 0)
+            bytes: OwnedReadBuffer::new_with_len(repeat(0).take(block_size).collect(), 0),
         }
     }
     pub fn reset(&mut self, ctr: &[u8]) {
@@ -714,22 +737,30 @@ impl <A: BlockEncryptor> CtrMode<A> {
     }
 }
 
-impl <A: BlockEncryptor> SynchronousStreamCipher for CtrMode<A> {
+impl<A: BlockEncryptor> SynchronousStreamCipher for CtrMode<A> {
     fn process(&mut self, input: &[u8], output: &mut [u8]) {
         self.process(input, output);
     }
 }
 
-impl <A: BlockEncryptor> Encryptor for CtrMode<A> {
-    fn encrypt(&mut self, input: &mut RefReadBuffer, output: &mut RefWriteBuffer, _: bool)
-            -> Result<BufferResult, SymmetricCipherError> {
+impl<A: BlockEncryptor> Encryptor for CtrMode<A> {
+    fn encrypt(
+        &mut self,
+        input: &mut RefReadBuffer,
+        output: &mut RefWriteBuffer,
+        _: bool,
+    ) -> Result<BufferResult, SymmetricCipherError> {
         symm_enc_or_dec(self, input, output)
     }
 }
 
-impl <A: BlockEncryptor> Decryptor for CtrMode<A> {
-    fn decrypt(&mut self, input: &mut RefReadBuffer, output: &mut RefWriteBuffer, _: bool)
-            -> Result<BufferResult, SymmetricCipherError> {
+impl<A: BlockEncryptor> Decryptor for CtrMode<A> {
+    fn decrypt(
+        &mut self,
+        input: &mut RefReadBuffer,
+        output: &mut RefWriteBuffer,
+        _: bool,
+    ) -> Result<BufferResult, SymmetricCipherError> {
         symm_enc_or_dec(self, input, output)
     }
 }
@@ -738,7 +769,7 @@ impl <A: BlockEncryptor> Decryptor for CtrMode<A> {
 pub struct CtrModeX8<A> {
     algo: A,
     ctr_x8: Vec<u8>,
-    bytes: OwnedReadBuffer
+    bytes: OwnedReadBuffer,
 }
 
 fn construct_ctr_x8(in_ctr: &[u8], out_ctr_x8: &mut [u8]) {
@@ -748,7 +779,7 @@ fn construct_ctr_x8(in_ctr: &[u8], out_ctr_x8: &mut [u8]) {
     }
 }
 
-impl <A: BlockEncryptorX8> CtrModeX8<A> {
+impl<A: BlockEncryptorX8> CtrModeX8<A> {
     /// Create a new CTR object that operates on 8 blocks at a time
     pub fn new(algo: A, ctr: &[u8]) -> CtrModeX8<A> {
         let block_size = algo.block_size();
@@ -757,7 +788,7 @@ impl <A: BlockEncryptorX8> CtrModeX8<A> {
         CtrModeX8 {
             algo: algo,
             ctr_x8: ctr_x8,
-            bytes: OwnedReadBuffer::new_with_len(repeat(0).take(block_size * 8).collect(), 0)
+            bytes: OwnedReadBuffer::new_with_len(repeat(0).take(block_size * 8).collect(), 0),
         }
     }
     pub fn reset(&mut self, ctr: &[u8]) {
@@ -772,7 +803,8 @@ impl <A: BlockEncryptorX8> CtrModeX8<A> {
         while i < len {
             if self.bytes.is_empty() {
                 let mut wb = self.bytes.borrow_write_buffer();
-                self.algo.encrypt_block_x8(&self.ctr_x8[..], wb.take_remaining());
+                self.algo
+                    .encrypt_block_x8(&self.ctr_x8[..], wb.take_remaining());
                 for ctr_i in &mut self.ctr_x8.chunks_mut(self.algo.block_size()) {
                     add_ctr(ctr_i, 8);
                 }
@@ -789,22 +821,30 @@ impl <A: BlockEncryptorX8> CtrModeX8<A> {
     }
 }
 
-impl <A: BlockEncryptorX8> SynchronousStreamCipher for CtrModeX8<A> {
+impl<A: BlockEncryptorX8> SynchronousStreamCipher for CtrModeX8<A> {
     fn process(&mut self, input: &[u8], output: &mut [u8]) {
         self.process(input, output);
     }
 }
 
-impl <A: BlockEncryptorX8> Encryptor for CtrModeX8<A> {
-    fn encrypt(&mut self, input: &mut RefReadBuffer, output: &mut RefWriteBuffer, _: bool)
-            -> Result<BufferResult, SymmetricCipherError> {
+impl<A: BlockEncryptorX8> Encryptor for CtrModeX8<A> {
+    fn encrypt(
+        &mut self,
+        input: &mut RefReadBuffer,
+        output: &mut RefWriteBuffer,
+        _: bool,
+    ) -> Result<BufferResult, SymmetricCipherError> {
         symm_enc_or_dec(self, input, output)
     }
 }
 
-impl <A: BlockEncryptorX8> Decryptor for CtrModeX8<A> {
-    fn decrypt(&mut self, input: &mut RefReadBuffer, output: &mut RefWriteBuffer, _: bool)
-            -> Result<BufferResult, SymmetricCipherError> {
+impl<A: BlockEncryptorX8> Decryptor for CtrModeX8<A> {
+    fn decrypt(
+        &mut self,
+        input: &mut RefReadBuffer,
+        output: &mut RefWriteBuffer,
+        _: bool,
+    ) -> Result<BufferResult, SymmetricCipherError> {
         symm_enc_or_dec(self, input, output)
     }
 }
@@ -814,12 +854,14 @@ mod test {
     use std::iter::repeat;
 
     use aessafe;
-    use blockmodes::{EcbEncryptor, EcbDecryptor, CbcEncryptor, CbcDecryptor, CtrMode, CtrModeX8,
-        NoPadding, PkcsPadding};
-    use buffer::{ReadBuffer, WriteBuffer, RefReadBuffer, RefWriteBuffer, BufferResult};
-    use buffer::BufferResult::{BufferUnderflow, BufferOverflow};
-    use symmetriccipher::{Encryptor, Decryptor};
+    use blockmodes::{
+        CbcDecryptor, CbcEncryptor, CtrMode, CtrModeX8, EcbDecryptor, EcbEncryptor, NoPadding,
+        PkcsPadding,
+    };
+    use buffer::BufferResult::{BufferOverflow, BufferUnderflow};
+    use buffer::{BufferResult, ReadBuffer, RefReadBuffer, RefWriteBuffer, WriteBuffer};
     use symmetriccipher::SymmetricCipherError::{self, InvalidLength, InvalidPadding};
+    use symmetriccipher::{Decryptor, Encryptor};
 
     use std::cmp;
 
@@ -831,7 +873,7 @@ mod test {
     struct EcbTest {
         key: Vec<u8>,
         plain: Vec<u8>,
-        cipher: Vec<u8>
+        cipher: Vec<u8>,
     }
 
     impl CipherTest for EcbTest {
@@ -847,7 +889,7 @@ mod test {
         key: Vec<u8>,
         iv: Vec<u8>,
         plain: Vec<u8>,
-        cipher: Vec<u8>
+        cipher: Vec<u8>,
     }
 
     impl CipherTest for CbcTest {
@@ -863,7 +905,7 @@ mod test {
         key: Vec<u8>,
         ctr: Vec<u8>,
         plain: Vec<u8>,
-        cipher: Vec<u8>
+        cipher: Vec<u8>,
     }
 
     impl CipherTest for CtrTest {
@@ -876,17 +918,15 @@ mod test {
     }
 
     fn aes_ecb_no_padding_tests() -> Vec<EcbTest> {
-        vec![
-            EcbTest {
-                key: repeat(0).take(16).collect(),
-                plain: repeat(0).take(32).collect(),
-                cipher: vec![
-                    0x66, 0xe9, 0x4b, 0xd4, 0xef, 0x8a, 0x2c, 0x3b,
-                    0x88, 0x4c, 0xfa, 0x59, 0xca, 0x34, 0x2b, 0x2e,
-                    0x66, 0xe9, 0x4b, 0xd4, 0xef, 0x8a, 0x2c, 0x3b,
-                    0x88, 0x4c, 0xfa, 0x59, 0xca, 0x34, 0x2b, 0x2e ]
-            }
-        ]
+        vec![EcbTest {
+            key: repeat(0).take(16).collect(),
+            plain: repeat(0).take(32).collect(),
+            cipher: vec![
+                0x66, 0xe9, 0x4b, 0xd4, 0xef, 0x8a, 0x2c, 0x3b, 0x88, 0x4c, 0xfa, 0x59, 0xca, 0x34,
+                0x2b, 0x2e, 0x66, 0xe9, 0x4b, 0xd4, 0xef, 0x8a, 0x2c, 0x3b, 0x88, 0x4c, 0xfa, 0x59,
+                0xca, 0x34, 0x2b, 0x2e,
+            ],
+        }]
     }
 
     fn aes_ecb_pkcs_padding_tests() -> Vec<EcbTest> {
@@ -895,40 +935,36 @@ mod test {
                 key: repeat(0).take(16).collect(),
                 plain: repeat(0).take(32).collect(),
                 cipher: vec![
-                    0x66, 0xe9, 0x4b, 0xd4, 0xef, 0x8a, 0x2c, 0x3b,
-                    0x88, 0x4c, 0xfa, 0x59, 0xca, 0x34, 0x2b, 0x2e,
-                    0x66, 0xe9, 0x4b, 0xd4, 0xef, 0x8a, 0x2c, 0x3b,
-                    0x88, 0x4c, 0xfa, 0x59, 0xca, 0x34, 0x2b, 0x2e,
-                    0x01, 0x43, 0xdb, 0x63, 0xee, 0x66, 0xb0, 0xcd,
-                    0xff, 0x9f, 0x69, 0x91, 0x76, 0x80, 0x15, 0x1e ]
+                    0x66, 0xe9, 0x4b, 0xd4, 0xef, 0x8a, 0x2c, 0x3b, 0x88, 0x4c, 0xfa, 0x59, 0xca,
+                    0x34, 0x2b, 0x2e, 0x66, 0xe9, 0x4b, 0xd4, 0xef, 0x8a, 0x2c, 0x3b, 0x88, 0x4c,
+                    0xfa, 0x59, 0xca, 0x34, 0x2b, 0x2e, 0x01, 0x43, 0xdb, 0x63, 0xee, 0x66, 0xb0,
+                    0xcd, 0xff, 0x9f, 0x69, 0x91, 0x76, 0x80, 0x15, 0x1e,
+                ],
             },
             EcbTest {
                 key: repeat(0).take(16).collect(),
                 plain: repeat(0).take(33).collect(),
                 cipher: vec![
-                    0x66, 0xe9, 0x4b, 0xd4, 0xef, 0x8a, 0x2c, 0x3b,
-                    0x88, 0x4c, 0xfa, 0x59, 0xca, 0x34, 0x2b, 0x2e,
-                    0x66, 0xe9, 0x4b, 0xd4, 0xef, 0x8a, 0x2c, 0x3b,
-                    0x88, 0x4c, 0xfa, 0x59, 0xca, 0x34, 0x2b, 0x2e,
-                    0x7a, 0xdc, 0x99, 0xb2, 0x9e, 0x82, 0xb1, 0xb2,
-                    0xb0, 0xa6, 0x5a, 0x38, 0xbc, 0x57, 0x8a, 0x01 ]
-            }
+                    0x66, 0xe9, 0x4b, 0xd4, 0xef, 0x8a, 0x2c, 0x3b, 0x88, 0x4c, 0xfa, 0x59, 0xca,
+                    0x34, 0x2b, 0x2e, 0x66, 0xe9, 0x4b, 0xd4, 0xef, 0x8a, 0x2c, 0x3b, 0x88, 0x4c,
+                    0xfa, 0x59, 0xca, 0x34, 0x2b, 0x2e, 0x7a, 0xdc, 0x99, 0xb2, 0x9e, 0x82, 0xb1,
+                    0xb2, 0xb0, 0xa6, 0x5a, 0x38, 0xbc, 0x57, 0x8a, 0x01,
+                ],
+            },
         ]
     }
 
     fn aes_cbc_no_padding_tests() -> Vec<CbcTest> {
-        vec![
-            CbcTest {
-                key: repeat(1).take(16).collect(),
-                iv: repeat(3).take(16).collect(),
-                plain: repeat(2).take(32).collect(),
-                cipher: vec![
-                    0x5e, 0x77, 0xe5, 0x9f, 0x8f, 0x85, 0x94, 0x34,
-                    0x89, 0xa2, 0x41, 0x49, 0xc7, 0x5f, 0x4e, 0xc9,
-                    0xe0, 0x9a, 0x77, 0x36, 0xfb, 0xc8, 0xb2, 0xdc,
-                    0xb3, 0xfb, 0x9f, 0xc0, 0x31, 0x4c, 0xb0, 0xb1 ]
-            }
-        ]
+        vec![CbcTest {
+            key: repeat(1).take(16).collect(),
+            iv: repeat(3).take(16).collect(),
+            plain: repeat(2).take(32).collect(),
+            cipher: vec![
+                0x5e, 0x77, 0xe5, 0x9f, 0x8f, 0x85, 0x94, 0x34, 0x89, 0xa2, 0x41, 0x49, 0xc7, 0x5f,
+                0x4e, 0xc9, 0xe0, 0x9a, 0x77, 0x36, 0xfb, 0xc8, 0xb2, 0xdc, 0xb3, 0xfb, 0x9f, 0xc0,
+                0x31, 0x4c, 0xb0, 0xb1,
+            ],
+        }]
     }
 
     fn aes_cbc_pkcs_padding_tests() -> Vec<CbcTest> {
@@ -938,49 +974,45 @@ mod test {
                 iv: repeat(3).take(16).collect(),
                 plain: repeat(2).take(32).collect(),
                 cipher: vec![
-                    0x5e, 0x77, 0xe5, 0x9f, 0x8f, 0x85, 0x94, 0x34,
-                    0x89, 0xa2, 0x41, 0x49, 0xc7, 0x5f, 0x4e, 0xc9,
-                    0xe0, 0x9a, 0x77, 0x36, 0xfb, 0xc8, 0xb2, 0xdc,
-                    0xb3, 0xfb, 0x9f, 0xc0, 0x31, 0x4c, 0xb0, 0xb1,
-                    0xa4, 0xc2, 0xe4, 0x62, 0xef, 0x7a, 0xe3, 0x7e,
-                    0xef, 0x88, 0xf3, 0x27, 0xbd, 0x9c, 0xc8, 0x4d ]
+                    0x5e, 0x77, 0xe5, 0x9f, 0x8f, 0x85, 0x94, 0x34, 0x89, 0xa2, 0x41, 0x49, 0xc7,
+                    0x5f, 0x4e, 0xc9, 0xe0, 0x9a, 0x77, 0x36, 0xfb, 0xc8, 0xb2, 0xdc, 0xb3, 0xfb,
+                    0x9f, 0xc0, 0x31, 0x4c, 0xb0, 0xb1, 0xa4, 0xc2, 0xe4, 0x62, 0xef, 0x7a, 0xe3,
+                    0x7e, 0xef, 0x88, 0xf3, 0x27, 0xbd, 0x9c, 0xc8, 0x4d,
+                ],
             },
             CbcTest {
                 key: repeat(1).take(16).collect(),
                 iv: repeat(3).take(16).collect(),
                 plain: repeat(2).take(33).collect(),
                 cipher: vec![
-                    0x5e, 0x77, 0xe5, 0x9f, 0x8f, 0x85, 0x94, 0x34,
-                    0x89, 0xa2, 0x41, 0x49, 0xc7, 0x5f, 0x4e, 0xc9,
-                    0xe0, 0x9a, 0x77, 0x36, 0xfb, 0xc8, 0xb2, 0xdc,
-                    0xb3, 0xfb, 0x9f, 0xc0, 0x31, 0x4c, 0xb0, 0xb1,
-                    0x6c, 0x47, 0xcd, 0xec, 0xae, 0xbb, 0x1a, 0x65,
-                    0x04, 0xd2, 0x32, 0x23, 0xa6, 0x8d, 0x4a, 0x65 ]
-            }
+                    0x5e, 0x77, 0xe5, 0x9f, 0x8f, 0x85, 0x94, 0x34, 0x89, 0xa2, 0x41, 0x49, 0xc7,
+                    0x5f, 0x4e, 0xc9, 0xe0, 0x9a, 0x77, 0x36, 0xfb, 0xc8, 0xb2, 0xdc, 0xb3, 0xfb,
+                    0x9f, 0xc0, 0x31, 0x4c, 0xb0, 0xb1, 0x6c, 0x47, 0xcd, 0xec, 0xae, 0xbb, 0x1a,
+                    0x65, 0x04, 0xd2, 0x32, 0x23, 0xa6, 0x8d, 0x4a, 0x65,
+                ],
+            },
         ]
     }
 
     fn aes_ctr_tests() -> Vec<CtrTest> {
-        vec![
-            CtrTest {
-                key: repeat(1).take(16).collect(),
-                ctr: repeat(3).take(16).collect(),
-                plain: repeat(2).take(33).collect(),
-                cipher: vec![
-                    0x64, 0x3e, 0x05, 0x19, 0x79, 0x78, 0xd7, 0x45,
-                    0xa9, 0x10, 0x5f, 0xd8, 0x4c, 0xd7, 0xe6, 0xb1,
-                    0x5f, 0x66, 0xc6, 0x17, 0x4b, 0x25, 0xea, 0x24,
-                    0xe6, 0xf9, 0x19, 0x09, 0xb7, 0xdd, 0x84, 0xfb,
-                    0x86 ]
-            }
-        ]
+        vec![CtrTest {
+            key: repeat(1).take(16).collect(),
+            ctr: repeat(3).take(16).collect(),
+            plain: repeat(2).take(33).collect(),
+            cipher: vec![
+                0x64, 0x3e, 0x05, 0x19, 0x79, 0x78, 0xd7, 0x45, 0xa9, 0x10, 0x5f, 0xd8, 0x4c, 0xd7,
+                0xe6, 0xb1, 0x5f, 0x66, 0xc6, 0x17, 0x4b, 0x25, 0xea, 0x24, 0xe6, 0xf9, 0x19, 0x09,
+                0xb7, 0xdd, 0x84, 0xfb, 0x86,
+            ],
+        }]
     }
 
     // Test the mode by encrypting all of the data at once
     fn run_full_test<T: CipherTest, E: Encryptor, D: Decryptor>(
-            test: &T,
-            enc: &mut E,
-            dec: &mut D) {
+        test: &T,
+        enc: &mut E,
+        dec: &mut D,
+    ) {
         let mut cipher_out: Vec<u8> = repeat(0).take(test.get_cipher().len()).collect();
         {
             let mut buff_in = RefReadBuffer::new(test.get_plain());
@@ -1022,17 +1054,21 @@ mod test {
     /// * immediate_eof - Whether eof should be set immediately upon running out of input or if eof
     ///                   should be passed only after all input has been consumed.
     fn run_inc<OpFunc, NextInFunc, NextOutFunc>(
-            input: &[u8],
-            output: &mut [u8],
-            mut op: OpFunc,
-            mut next_in_len: NextInFunc,
-            mut next_out_len: NextOutFunc,
-            immediate_eof: bool)
-            where
-                OpFunc: FnMut(&mut RefReadBuffer, &mut RefWriteBuffer, bool) ->
-                    Result<BufferResult, SymmetricCipherError>,
-                NextInFunc: FnMut() -> usize,
-                NextOutFunc: FnMut() -> usize {
+        input: &[u8],
+        output: &mut [u8],
+        mut op: OpFunc,
+        mut next_in_len: NextInFunc,
+        mut next_out_len: NextOutFunc,
+        immediate_eof: bool,
+    ) where
+        OpFunc: FnMut(
+            &mut RefReadBuffer,
+            &mut RefWriteBuffer,
+            bool,
+        ) -> Result<BufferResult, SymmetricCipherError>,
+        NextInFunc: FnMut() -> usize,
+        NextOutFunc: FnMut() -> usize,
+    {
         use std::cell::Cell;
 
         let in_len = input.len();
@@ -1089,7 +1125,7 @@ mod test {
                     out_pos += tmp_out.position();
                 }
                 Err(InvalidPadding) => panic!("Invalid Padding"),
-                Err(InvalidLength) => panic!("Invalid Length")
+                Err(InvalidLength) => panic!("Invalid Length"),
             }
         }
 
@@ -1113,15 +1149,16 @@ mod test {
                     out_pos += tmp_out.position();
                 }
                 Err(InvalidPadding) => panic!("Invalid Padding"),
-                Err(InvalidLength) => panic!("Invalid Length")
+                Err(InvalidLength) => panic!("Invalid Length"),
             }
         }
     }
 
     fn run_inc1_test<T: CipherTest, E: Encryptor, D: Decryptor>(
-            test: &T,
-            enc: &mut E,
-            dec: &mut D) {
+        test: &T,
+        enc: &mut E,
+        dec: &mut D,
+    ) {
         let mut cipher_out: Vec<u8> = repeat(0).take(test.get_cipher().len()).collect();
         run_inc(
             test.get_plain(),
@@ -1129,9 +1166,10 @@ mod test {
             |in_buff: &mut RefReadBuffer, out_buff: &mut RefWriteBuffer, eof: bool| {
                 enc.encrypt(in_buff, out_buff, eof)
             },
-            || { 0 },
-            || { 1 },
-            false);
+            || 0,
+            || 1,
+            false,
+        );
         assert!(test.get_cipher() == &cipher_out[..]);
 
         let mut plain_out: Vec<u8> = repeat(0).take(test.get_plain().len()).collect();
@@ -1141,37 +1179,35 @@ mod test {
             |in_buff: &mut RefReadBuffer, out_buff: &mut RefWriteBuffer, eof: bool| {
                 dec.decrypt(in_buff, out_buff, eof)
             },
-            || { 0 },
-            || { 1 },
-            false);
+            || 0,
+            || 1,
+            false,
+        );
         assert!(test.get_plain() == &plain_out[..]);
     }
 
     fn run_rand_test<T, E, D, NewEncFunc, NewDecFunc>(
-            test: &T,
-            mut new_enc: NewEncFunc,
-            mut new_dec: NewDecFunc)
-            where
-                T: CipherTest,
-                E: Encryptor,
-                D: Decryptor,
-                NewEncFunc: FnMut() -> E,
-                NewDecFunc: FnMut() -> D{
+        test: &T,
+        mut new_enc: NewEncFunc,
+        mut new_dec: NewDecFunc,
+    ) where
+        T: CipherTest,
+        E: Encryptor,
+        D: Decryptor,
+        NewEncFunc: FnMut() -> E,
+        NewDecFunc: FnMut() -> D,
+    {
         use rand;
         use rand::Rng;
 
-        let tmp : &[_] = &[1, 2, 3, 4];
+        let tmp: &[_] = &[1, 2, 3, 4];
         let mut rng1: rand::StdRng = rand::SeedableRng::from_seed(tmp);
         let mut rng2: rand::StdRng = rand::SeedableRng::from_seed(tmp);
         let mut rng3: rand::StdRng = rand::SeedableRng::from_seed(tmp);
         let max_size = cmp::max(test.get_plain().len(), test.get_cipher().len());
 
-        let mut r1 = || {
-            rng1.gen_range(0, max_size)
-        };
-        let mut r2 = || {
-            rng2.gen_range(0, max_size)
-        };
+        let mut r1 = || rng1.gen_range(0, max_size);
+        let mut r2 = || rng2.gen_range(0, max_size);
 
         for _ in 0..1000 {
             let mut enc = new_enc();
@@ -1184,9 +1220,10 @@ mod test {
                 |in_buff: &mut RefReadBuffer, out_buff: &mut RefWriteBuffer, eof: bool| {
                     enc.encrypt(in_buff, out_buff, eof)
                 },
-                || { r1() },
-                || { r2() },
-                rng3.gen());
+                || r1(),
+                || r2(),
+                rng3.gen(),
+            );
             assert!(test.get_cipher() == &cipher_out[..]);
 
             let mut plain_out: Vec<u8> = repeat(0).take(test.get_plain().len()).collect();
@@ -1196,23 +1233,25 @@ mod test {
                 |in_buff: &mut RefReadBuffer, out_buff: &mut RefWriteBuffer, eof: bool| {
                     dec.decrypt(in_buff, out_buff, eof)
                 },
-                || { r1() },
-                || { r2() },
-                rng3.gen());
+                || r1(),
+                || r2(),
+                rng3.gen(),
+            );
             assert!(test.get_plain() == &plain_out[..]);
         }
     }
 
     fn run_test<T, E, D, NewEncFunc, NewDecFunc>(
-            test: &T,
-            mut new_enc: NewEncFunc,
-            mut new_dec: NewDecFunc)
-            where
-                T: CipherTest,
-                E: Encryptor,
-                D: Decryptor,
-                NewEncFunc: FnMut() -> E,
-                NewDecFunc: FnMut() -> D{
+        test: &T,
+        mut new_enc: NewEncFunc,
+        mut new_dec: NewDecFunc,
+    ) where
+        T: CipherTest,
+        E: Encryptor,
+        D: Decryptor,
+        NewEncFunc: FnMut() -> E,
+        NewDecFunc: FnMut() -> D,
+    {
         run_full_test(test, &mut new_enc(), &mut new_dec());
         run_inc1_test(test, &mut new_enc(), &mut new_dec());
         run_rand_test(test, new_enc, new_dec);
@@ -1231,7 +1270,8 @@ mod test {
                 || {
                     let aes_dec = aessafe::AesSafe128Decryptor::new(&test.key[..]);
                     EcbDecryptor::new(aes_dec, NoPadding)
-                });
+                },
+            );
         }
     }
 
@@ -1248,7 +1288,8 @@ mod test {
                 || {
                     let aes_dec = aessafe::AesSafe128Decryptor::new(&test.key[..]);
                     EcbDecryptor::new(aes_dec, PkcsPadding)
-                });
+                },
+            );
         }
     }
 
@@ -1265,7 +1306,8 @@ mod test {
                 || {
                     let aes_dec = aessafe::AesSafe128Decryptor::new(&test.key[..]);
                     CbcDecryptor::new(aes_dec, NoPadding, test.iv.clone())
-                });
+                },
+            );
         }
     }
 
@@ -1282,7 +1324,8 @@ mod test {
                 || {
                     let aes_dec = aessafe::AesSafe128Decryptor::new(&test.key[..]);
                     CbcDecryptor::new(aes_dec, PkcsPadding, test.iv.clone())
-                });
+                },
+            );
         }
     }
 
@@ -1299,7 +1342,8 @@ mod test {
                 || {
                     let aes_enc = aessafe::AesSafe128Encryptor::new(&test.key[..]);
                     CtrMode::new(aes_enc, test.ctr.clone())
-                });
+                },
+            );
         }
     }
 
@@ -1316,7 +1360,8 @@ mod test {
                 || {
                     let aes_enc = aessafe::AesSafe128EncryptorX8::new(&test.key[..]);
                     CtrModeX8::new(aes_enc, &test.ctr[..])
-                });
+                },
+            );
         }
     }
 }
@@ -1324,11 +1369,10 @@ mod test {
 #[cfg(all(test, feature = "with-bench"))]
 mod bench {
     use aessafe;
-    use blockmodes::{EcbEncryptor, CbcEncryptor, CtrMode, CtrModeX8,
-        NoPadding, PkcsPadding};
-    use buffer::{ReadBuffer, WriteBuffer, RefReadBuffer, RefWriteBuffer};
-    use buffer::BufferResult::{BufferUnderflow, BufferOverflow};
-    use symmetriccipher::{Encryptor};
+    use blockmodes::{CbcEncryptor, CtrMode, CtrModeX8, EcbEncryptor, NoPadding, PkcsPadding};
+    use buffer::BufferResult::{BufferOverflow, BufferUnderflow};
+    use buffer::{ReadBuffer, RefReadBuffer, RefWriteBuffer, WriteBuffer};
+    use symmetriccipher::Encryptor;
 
     use test::Bencher;
 
@@ -1341,7 +1385,7 @@ mod bench {
         let aes_enc = aessafe::AesSafe128Encryptor::new(&key);
         let mut enc = EcbEncryptor::new(aes_enc, NoPadding);
 
-        bh.iter( || {
+        bh.iter(|| {
             enc.reset();
 
             let mut buff_in = RefReadBuffer::new(&plain);
@@ -1367,7 +1411,7 @@ mod bench {
         let aes_enc = aessafe::AesSafe128Encryptor::new(&key);
         let mut enc = CbcEncryptor::new(aes_enc, PkcsPadding, iv.to_vec());
 
-        bh.iter( || {
+        bh.iter(|| {
             enc.reset(&iv);
 
             let mut buff_in = RefReadBuffer::new(&plain);
@@ -1393,7 +1437,7 @@ mod bench {
         let aes_enc = aessafe::AesSafe128Encryptor::new(&key);
         let mut enc = CtrMode::new(aes_enc, ctr.to_vec());
 
-        bh.iter( || {
+        bh.iter(|| {
             enc.reset(&ctr);
 
             let mut buff_in = RefReadBuffer::new(&plain);
@@ -1419,7 +1463,7 @@ mod bench {
         let aes_enc = aessafe::AesSafe128EncryptorX8::new(&key);
         let mut enc = CtrModeX8::new(aes_enc, &ctr);
 
-        bh.iter( || {
+        bh.iter(|| {
             enc.reset(&ctr);
 
             let mut buff_in = RefReadBuffer::new(&plain);

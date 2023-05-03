@@ -60,8 +60,10 @@ Some of these functions are commonly found in all hash digest
 algorithms, but some, like "parity" is only found in SHA-1.
  */
 
+use cryptoutil::{
+    add_bytes_to_bits, read_u32v_be, write_u32_be, FixedBuffer, FixedBuffer64, StandardPadding,
+};
 use digest::Digest;
-use cryptoutil::{write_u32_be, read_u32v_be, add_bytes_to_bits, FixedBuffer, FixedBuffer64, StandardPadding};
 use simd::u32x4;
 
 const STATE_LEN: usize = 5;
@@ -129,7 +131,7 @@ pub fn sha1_digest_round_x4(abcd: u32x4, work: u32x4, i: i8) -> u32x4 {
         1 => sha1rnds4p(abcd, work + K1V),
         2 => sha1rnds4m(abcd, work + K2V),
         3 => sha1rnds4p(abcd, work + K3V),
-        _ => panic!("unknown icosaround index")
+        _ => panic!("unknown icosaround index"),
     }
 }
 
@@ -140,19 +142,33 @@ fn sha1rnds4c(abcd: u32x4, msg: u32x4) -> u32x4 {
     let mut e = 0u32;
 
     macro_rules! bool3ary_202 {
-        ($a:expr, $b:expr, $c:expr) => (($c ^ ($a & ($b ^ $c))))
+        ($a:expr, $b:expr, $c:expr) => {
+            ($c ^ ($a & ($b ^ $c)))
+        };
     } // Choose, MD5F, SHA1C
 
-    e = e.wrapping_add(a.rotate_left(5)).wrapping_add(bool3ary_202!(b, c, d)).wrapping_add(t);
+    e = e
+        .wrapping_add(a.rotate_left(5))
+        .wrapping_add(bool3ary_202!(b, c, d))
+        .wrapping_add(t);
     b = b.rotate_left(30);
 
-    d = d.wrapping_add(e.rotate_left(5)).wrapping_add(bool3ary_202!(a, b, c)).wrapping_add(u);
+    d = d
+        .wrapping_add(e.rotate_left(5))
+        .wrapping_add(bool3ary_202!(a, b, c))
+        .wrapping_add(u);
     a = a.rotate_left(30);
 
-    c = c.wrapping_add(d.rotate_left(5)).wrapping_add(bool3ary_202!(e, a, b)).wrapping_add(v);
+    c = c
+        .wrapping_add(d.rotate_left(5))
+        .wrapping_add(bool3ary_202!(e, a, b))
+        .wrapping_add(v);
     e = e.rotate_left(30);
 
-    b = b.wrapping_add(c.rotate_left(5)).wrapping_add(bool3ary_202!(d, e, a)).wrapping_add(w);
+    b = b
+        .wrapping_add(c.rotate_left(5))
+        .wrapping_add(bool3ary_202!(d, e, a))
+        .wrapping_add(w);
     d = d.rotate_left(30);
 
     u32x4(b, c, d, e)
@@ -165,19 +181,33 @@ fn sha1rnds4p(abcd: u32x4, msg: u32x4) -> u32x4 {
     let mut e = 0u32;
 
     macro_rules! bool3ary_150 {
-        ($a:expr, $b:expr, $c:expr) => (($a ^ $b ^ $c))
+        ($a:expr, $b:expr, $c:expr) => {
+            ($a ^ $b ^ $c)
+        };
     } // Parity, XOR, MD5H, SHA1P
 
-    e = e.wrapping_add(a.rotate_left(5)).wrapping_add(bool3ary_150!(b, c, d)).wrapping_add(t);
+    e = e
+        .wrapping_add(a.rotate_left(5))
+        .wrapping_add(bool3ary_150!(b, c, d))
+        .wrapping_add(t);
     b = b.rotate_left(30);
 
-    d = d.wrapping_add(e.rotate_left(5)).wrapping_add(bool3ary_150!(a, b, c)).wrapping_add(u);
+    d = d
+        .wrapping_add(e.rotate_left(5))
+        .wrapping_add(bool3ary_150!(a, b, c))
+        .wrapping_add(u);
     a = a.rotate_left(30);
 
-    c = c.wrapping_add(d.rotate_left(5)).wrapping_add(bool3ary_150!(e, a, b)).wrapping_add(v);
+    c = c
+        .wrapping_add(d.rotate_left(5))
+        .wrapping_add(bool3ary_150!(e, a, b))
+        .wrapping_add(v);
     e = e.rotate_left(30);
 
-    b = b.wrapping_add(c.rotate_left(5)).wrapping_add(bool3ary_150!(d, e, a)).wrapping_add(w);
+    b = b
+        .wrapping_add(c.rotate_left(5))
+        .wrapping_add(bool3ary_150!(d, e, a))
+        .wrapping_add(w);
     d = d.rotate_left(30);
 
     u32x4(b, c, d, e)
@@ -190,19 +220,33 @@ fn sha1rnds4m(abcd: u32x4, msg: u32x4) -> u32x4 {
     let mut e = 0u32;
 
     macro_rules! bool3ary_232 {
-        ($a:expr, $b:expr, $c:expr) => (($a & $b) ^ ($a & $c) ^ ($b & $c))
+        ($a:expr, $b:expr, $c:expr) => {
+            ($a & $b) ^ ($a & $c) ^ ($b & $c)
+        };
     } // Majority, SHA1M
 
-    e = e.wrapping_add(a.rotate_left(5)).wrapping_add(bool3ary_232!(b, c, d)).wrapping_add(t);
+    e = e
+        .wrapping_add(a.rotate_left(5))
+        .wrapping_add(bool3ary_232!(b, c, d))
+        .wrapping_add(t);
     b = b.rotate_left(30);
 
-    d = d.wrapping_add(e.rotate_left(5)).wrapping_add(bool3ary_232!(a, b, c)).wrapping_add(u);
+    d = d
+        .wrapping_add(e.rotate_left(5))
+        .wrapping_add(bool3ary_232!(a, b, c))
+        .wrapping_add(u);
     a = a.rotate_left(30);
 
-    c = c.wrapping_add(d.rotate_left(5)).wrapping_add(bool3ary_232!(e, a, b)).wrapping_add(v);
+    c = c
+        .wrapping_add(d.rotate_left(5))
+        .wrapping_add(bool3ary_232!(e, a, b))
+        .wrapping_add(v);
     e = e.rotate_left(30);
 
-    b = b.wrapping_add(c.rotate_left(5)).wrapping_add(bool3ary_232!(d, e, a)).wrapping_add(w);
+    b = b
+        .wrapping_add(c.rotate_left(5))
+        .wrapping_add(bool3ary_232!(d, e, a))
+        .wrapping_add(w);
     d = d.rotate_left(30);
 
     u32x4(b, c, d, e)
@@ -210,43 +254,27 @@ fn sha1rnds4m(abcd: u32x4, msg: u32x4) -> u32x4 {
 
 /// Process a block with the SHA-1 algorithm.
 pub fn sha1_digest_block_u32(state: &mut [u32; 5], block: &[u32; 16]) {
-
     macro_rules! schedule {
-        ($v0:expr, $v1:expr, $v2:expr, $v3:expr) => (
+        ($v0:expr, $v1:expr, $v2:expr, $v3:expr) => {
             sha1msg2(sha1msg1($v0, $v1) ^ $v2, $v3)
-        )
+        };
     }
 
     macro_rules! rounds4 {
-        ($h0:ident, $h1:ident, $wk:expr, $i:expr) => (
+        ($h0:ident, $h1:ident, $wk:expr, $i:expr) => {
             sha1_digest_round_x4($h0, sha1_first_half($h1, $wk), $i)
-        )
+        };
     }
 
     // Rounds 0..20
-    let mut h0 = u32x4(state[0],
-                       state[1],
-                       state[2],
-                       state[3]);
-    let mut w0 = u32x4(block[0],
-                       block[1],
-                       block[2],
-                       block[3]);
+    let mut h0 = u32x4(state[0], state[1], state[2], state[3]);
+    let mut w0 = u32x4(block[0], block[1], block[2], block[3]);
     let mut h1 = sha1_digest_round_x4(h0, sha1_first_add(state[4], w0), 0);
-    let mut w1 = u32x4(block[4],
-                       block[5],
-                       block[6],
-                       block[7]);
+    let mut w1 = u32x4(block[4], block[5], block[6], block[7]);
     h0 = rounds4!(h1, h0, w1, 0);
-    let mut w2 = u32x4(block[8],
-                       block[9],
-                       block[10],
-                       block[11]);
+    let mut w2 = u32x4(block[8], block[9], block[10], block[11]);
     h1 = rounds4!(h0, h1, w2, 0);
-    let mut w3 = u32x4(block[12],
-                       block[13],
-                       block[14],
-                       block[15]);
+    let mut w3 = u32x4(block[12], block[13], block[14], block[15]);
     h0 = rounds4!(h1, h0, w3, 0);
     let mut w4 = schedule!(w0, w1, w2, w3);
     h1 = rounds4!(h0, h1, w4, 0);
@@ -345,8 +373,8 @@ pub fn sha1_digest_block_u32(state: &mut [u32; 5], block: &[u32; 16]) {
 /// and also shown above is how the digest-related functions can be used to
 /// perform 4 rounds of the message block digest calculation.
 ///
-pub fn sha1_digest_block(state: &mut [u32; 5], block: &[u8/*; 64*/]) {
-    assert_eq!(block.len(), BLOCK_LEN*4);
+pub fn sha1_digest_block(state: &mut [u32; 5], block: &[u8]) {
+    assert_eq!(block.len(), BLOCK_LEN * 4);
     let mut block2 = [0u32; BLOCK_LEN];
     read_u32v_be(&mut block2[..], block);
     sha1_digest_block_u32(state, &block2);
@@ -357,14 +385,17 @@ fn add_input(st: &mut Sha1, msg: &[u8]) {
     // Assumes that msg.len() can be converted to u64 without overflow
     st.length_bits = add_bytes_to_bits(st.length_bits, msg.len() as u64);
     let st_h = &mut st.h;
-    st.buffer.input(msg, |d: &[u8]| { sha1_digest_block(st_h, d); });
+    st.buffer.input(msg, |d: &[u8]| {
+        sha1_digest_block(st_h, d);
+    });
 }
 
 fn mk_result(st: &mut Sha1, rs: &mut [u8]) {
     if !st.computed {
         let st_h = &mut st.h;
-        st.buffer.standard_padding(8, |d: &[u8]| { sha1_digest_block(&mut *st_h, d) });
-        write_u32_be(st.buffer.next(4), (st.length_bits >> 32) as u32 );
+        st.buffer
+            .standard_padding(8, |d: &[u8]| sha1_digest_block(&mut *st_h, d));
+        write_u32_be(st.buffer.next(4), (st.length_bits >> 32) as u32);
         write_u32_be(st.buffer.next(4), st.length_bits as u32);
         sha1_digest_block(st_h, st.buffer.full_buffer());
 
@@ -412,10 +443,18 @@ impl Digest for Sha1 {
         self.buffer.reset();
         self.computed = false;
     }
-    fn input(&mut self, msg: &[u8]) { add_input(self, msg); }
-    fn result(&mut self, out: &mut [u8]) { mk_result(self, out) }
-    fn output_bits(&self) -> usize { 160 }
-    fn block_size(&self) -> usize { 64 }
+    fn input(&mut self, msg: &[u8]) {
+        add_input(self, msg);
+    }
+    fn result(&mut self, out: &mut [u8]) {
+        mk_result(self, out)
+    }
+    fn output_bits(&self) -> usize {
+        160
+    }
+    fn block_size(&self) -> usize {
+        64
+    }
 }
 
 #[cfg(test)]
@@ -438,46 +477,33 @@ mod tests {
             Test {
                 input: "abc",
                 output: vec![
-                    0xA9u8, 0x99u8, 0x3Eu8, 0x36u8,
-                    0x47u8, 0x06u8, 0x81u8, 0x6Au8,
-                    0xBAu8, 0x3Eu8, 0x25u8, 0x71u8,
-                    0x78u8, 0x50u8, 0xC2u8, 0x6Cu8,
-                    0x9Cu8, 0xD0u8, 0xD8u8, 0x9Du8,
+                    0xA9u8, 0x99u8, 0x3Eu8, 0x36u8, 0x47u8, 0x06u8, 0x81u8, 0x6Au8, 0xBAu8, 0x3Eu8,
+                    0x25u8, 0x71u8, 0x78u8, 0x50u8, 0xC2u8, 0x6Cu8, 0x9Cu8, 0xD0u8, 0xD8u8, 0x9Du8,
                 ],
-                output_str: "a9993e364706816aba3e25717850c26c9cd0d89d"
+                output_str: "a9993e364706816aba3e25717850c26c9cd0d89d",
             },
             Test {
-                input:
-                     "abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq",
+                input: "abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq",
                 output: vec![
-                    0x84u8, 0x98u8, 0x3Eu8, 0x44u8,
-                    0x1Cu8, 0x3Bu8, 0xD2u8, 0x6Eu8,
-                    0xBAu8, 0xAEu8, 0x4Au8, 0xA1u8,
-                    0xF9u8, 0x51u8, 0x29u8, 0xE5u8,
-                    0xE5u8, 0x46u8, 0x70u8, 0xF1u8,
+                    0x84u8, 0x98u8, 0x3Eu8, 0x44u8, 0x1Cu8, 0x3Bu8, 0xD2u8, 0x6Eu8, 0xBAu8, 0xAEu8,
+                    0x4Au8, 0xA1u8, 0xF9u8, 0x51u8, 0x29u8, 0xE5u8, 0xE5u8, 0x46u8, 0x70u8, 0xF1u8,
                 ],
-                output_str: "84983e441c3bd26ebaae4aa1f95129e5e54670f1"
+                output_str: "84983e441c3bd26ebaae4aa1f95129e5e54670f1",
             },
             // Examples from wikipedia
             Test {
                 input: "The quick brown fox jumps over the lazy dog",
                 output: vec![
-                    0x2fu8, 0xd4u8, 0xe1u8, 0xc6u8,
-                    0x7au8, 0x2du8, 0x28u8, 0xfcu8,
-                    0xedu8, 0x84u8, 0x9eu8, 0xe1u8,
-                    0xbbu8, 0x76u8, 0xe7u8, 0x39u8,
-                    0x1bu8, 0x93u8, 0xebu8, 0x12u8,
+                    0x2fu8, 0xd4u8, 0xe1u8, 0xc6u8, 0x7au8, 0x2du8, 0x28u8, 0xfcu8, 0xedu8, 0x84u8,
+                    0x9eu8, 0xe1u8, 0xbbu8, 0x76u8, 0xe7u8, 0x39u8, 0x1bu8, 0x93u8, 0xebu8, 0x12u8,
                 ],
                 output_str: "2fd4e1c67a2d28fced849ee1bb76e7391b93eb12",
             },
             Test {
                 input: "The quick brown fox jumps over the lazy cog",
                 output: vec![
-                    0xdeu8, 0x9fu8, 0x2cu8, 0x7fu8,
-                    0xd2u8, 0x5eu8, 0x1bu8, 0x3au8,
-                    0xfau8, 0xd3u8, 0xe8u8, 0x5au8,
-                    0x0bu8, 0xd1u8, 0x7du8, 0x9bu8,
-                    0x10u8, 0x0du8, 0xb4u8, 0xb3u8,
+                    0xdeu8, 0x9fu8, 0x2cu8, 0x7fu8, 0xd2u8, 0x5eu8, 0x1bu8, 0x3au8, 0xfau8, 0xd3u8,
+                    0xe8u8, 0x5au8, 0x0bu8, 0xd1u8, 0x7du8, 0x9bu8, 0x10u8, 0x0du8, 0xb4u8, 0xb3u8,
                 ],
                 output_str: "de9f2c7fd25e1b3afad3e85a0bd17d9b100db4b3",
             },
@@ -499,7 +525,6 @@ mod tests {
 
             sh.reset();
         }
-
 
         // Test that it works when accepting the message in pieces
         for t in tests.iter() {
@@ -524,58 +549,54 @@ mod tests {
     #[test]
     fn test_1million_random_sha1() {
         let mut sh = Sha1::new();
-        test_digest_1million_random(
-            &mut sh,
-            64,
-            "34aa973cd4c4daa4f61eeb2bdbad27316534016f");
+        test_digest_1million_random(&mut sh, 64, "34aa973cd4c4daa4f61eeb2bdbad27316534016f");
     }
 }
 
 #[cfg(all(test, feature = "with-bench"))]
 mod bench {
-    use test::Bencher;
     use digest::Digest;
-    use sha1::{STATE_LEN, BLOCK_LEN};
-    use sha1::{Sha1, sha1_digest_block_u32};
+    use sha1::{sha1_digest_block_u32, Sha1};
+    use sha1::{BLOCK_LEN, STATE_LEN};
+    use test::Bencher;
 
     #[bench]
-    pub fn sha1_block(bh: & mut Bencher) {
+    pub fn sha1_block(bh: &mut Bencher) {
         let mut state = [0u32; STATE_LEN];
         let words = [1u32; BLOCK_LEN];
-        bh.iter( || {
+        bh.iter(|| {
             sha1_digest_block_u32(&mut state, &words);
         });
         bh.bytes = 64u64;
     }
 
     #[bench]
-    pub fn sha1_10(bh: & mut Bencher) {
+    pub fn sha1_10(bh: &mut Bencher) {
         let mut sh = Sha1::new();
         let bytes = [1u8; 10];
-        bh.iter( || {
+        bh.iter(|| {
             sh.input(&bytes);
         });
         bh.bytes = bytes.len() as u64;
     }
 
     #[bench]
-    pub fn sha1_1k(bh: & mut Bencher) {
+    pub fn sha1_1k(bh: &mut Bencher) {
         let mut sh = Sha1::new();
         let bytes = [1u8; 1024];
-        bh.iter( || {
+        bh.iter(|| {
             sh.input(&bytes);
         });
         bh.bytes = bytes.len() as u64;
     }
 
     #[bench]
-    pub fn sha1_64k(bh: & mut Bencher) {
+    pub fn sha1_64k(bh: &mut Bencher) {
         let mut sh = Sha1::new();
         let bytes = [1u8; 65536];
-        bh.iter( || {
+        bh.iter(|| {
             sh.input(&bytes);
         });
         bh.bytes = bytes.len() as u64;
     }
-
 }

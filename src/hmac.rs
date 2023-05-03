@@ -21,7 +21,7 @@ pub struct Hmac<D> {
     digest: D,
     i_key: Vec<u8>,
     o_key: Vec<u8>,
-    finished: bool
+    finished: bool,
 }
 
 fn derive_key(key: &mut [u8], mask: u8) {
@@ -58,7 +58,7 @@ fn create_keys<D: Digest>(digest: &mut D, key: &[u8]) -> (Vec<u8>, Vec<u8>) {
     (i_key, o_key)
 }
 
-impl <D: Digest> Hmac<D> {
+impl<D: Digest> Hmac<D> {
     /**
      * Create a new Hmac instance.
      *
@@ -74,12 +74,12 @@ impl <D: Digest> Hmac<D> {
             digest: digest,
             i_key: i_key,
             o_key: o_key,
-            finished: false
+            finished: false,
         }
     }
 }
 
-impl <D: Digest> Mac for Hmac<D> {
+impl<D: Digest> Mac for Hmac<D> {
     fn input(&mut self, data: &[u8]) {
         assert!(!self.finished);
         self.digest.input(data);
@@ -114,22 +114,24 @@ impl <D: Digest> Mac for Hmac<D> {
         self.digest.result(output);
     }
 
-    fn output_bytes(&self) -> usize { self.digest.output_bytes() }
+    fn output_bytes(&self) -> usize {
+        self.digest.output_bytes()
+    }
 }
 
 #[cfg(test)]
 mod test {
     use std::iter::repeat;
 
-    use mac::{Mac, MacResult};
-    use hmac::Hmac;
     use digest::Digest;
+    use hmac::Hmac;
+    use mac::{Mac, MacResult};
     use md5::Md5;
 
     struct Test {
         key: Vec<u8>,
         data: Vec<u8>,
-        expected: Vec<u8>
+        expected: Vec<u8>,
     }
 
     // Test vectors from: http://tools.ietf.org/html/rfc2104
@@ -140,23 +142,26 @@ mod test {
                 key: repeat(0x0bu8).take(16).collect(),
                 data: b"Hi There".to_vec(),
                 expected: vec![
-                    0x92, 0x94, 0x72, 0x7a, 0x36, 0x38, 0xbb, 0x1c,
-                    0x13, 0xf4, 0x8e, 0xf8, 0x15, 0x8b, 0xfc, 0x9d ]
+                    0x92, 0x94, 0x72, 0x7a, 0x36, 0x38, 0xbb, 0x1c, 0x13, 0xf4, 0x8e, 0xf8, 0x15,
+                    0x8b, 0xfc, 0x9d,
+                ],
             },
             Test {
                 key: b"Jefe".to_vec(),
                 data: b"what do ya want for nothing?".to_vec(),
                 expected: vec![
-                    0x75, 0x0c, 0x78, 0x3e, 0x6a, 0xb0, 0xb5, 0x03,
-                    0xea, 0xa8, 0x6e, 0x31, 0x0a, 0x5d, 0xb7, 0x38 ]
+                    0x75, 0x0c, 0x78, 0x3e, 0x6a, 0xb0, 0xb5, 0x03, 0xea, 0xa8, 0x6e, 0x31, 0x0a,
+                    0x5d, 0xb7, 0x38,
+                ],
             },
             Test {
                 key: repeat(0xaau8).take(16).collect(),
                 data: repeat(0xddu8).take(50).collect(),
                 expected: vec![
-                    0x56, 0xbe, 0x34, 0x52, 0x1d, 0x14, 0x4c, 0x88,
-                    0xdb, 0xb8, 0xc7, 0x33, 0xf0, 0xe8, 0xb3, 0xf6 ]
-            }
+                    0x56, 0xbe, 0x34, 0x52, 0x1d, 0x14, 0x4c, 0x88, 0xdb, 0xb8, 0xc7, 0x33, 0xf0,
+                    0xe8, 0xb3, 0xf6,
+                ],
+            },
         ]
     }
 

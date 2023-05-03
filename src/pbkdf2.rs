@@ -9,12 +9,12 @@
  * http://tools.ietf.org/html/rfc2898.
  */
 
-use std::iter::repeat;
-use std::io;
 use cryptoutil::copy_memory;
+use std::io;
+use std::iter::repeat;
 
-use rand::{OsRng, Rng};
 use base64;
+use rand::{OsRng, Rng};
 
 use cryptoutil::{read_u32_be, write_u32_be};
 use hmac::Hmac;
@@ -30,12 +30,13 @@ use util::fixed_time_eq;
 // scratch - a temporary variable the same length as the block
 // block - the block of the output to calculate
 fn calculate_block<M: Mac>(
-        mac: &mut M,
-        salt: &[u8],
-        c: u32,
-        idx: u32,
-        scratch: &mut [u8],
-        block: &mut [u8]) {
+    mac: &mut M,
+    salt: &[u8],
+    c: u32,
+    idx: u32,
+    scratch: &mut [u8],
+    block: &mut [u8],
+) {
     // Perform the 1st iteration. The output goes directly into block
     mac.input(salt);
     let mut idx_buf = [0u8; 4];
@@ -171,67 +172,79 @@ pub fn pbkdf2_check(password: &str, hashed_value: &str) -> Result<bool, &'static
 
     // Check that there are no characters before the first "$"
     match iter.next() {
-        Some(x) => if x != "" { return Err(ERR_STR); },
-        None => return Err(ERR_STR)
+        Some(x) => {
+            if x != "" {
+                return Err(ERR_STR);
+            }
+        }
+        None => return Err(ERR_STR),
     }
 
     // Check the name
     match iter.next() {
-        Some(t) => if t != "rpbkdf2" { return Err(ERR_STR); },
-        None => return Err(ERR_STR)
+        Some(t) => {
+            if t != "rpbkdf2" {
+                return Err(ERR_STR);
+            }
+        }
+        None => return Err(ERR_STR),
     }
 
     // Parse format - currenlty only version 0 is supported
     match iter.next() {
-        Some(fstr) => {
-            match fstr {
-                "0" => { }
-                _ => return Err(ERR_STR)
-            }
-        }
-        None => return Err(ERR_STR)
+        Some(fstr) => match fstr {
+            "0" => {}
+            _ => return Err(ERR_STR),
+        },
+        None => return Err(ERR_STR),
     }
 
     // Parse the iteration count
     let c = match iter.next() {
         Some(pstr) => match base64::decode(pstr) {
             Ok(pvec) => {
-                if pvec.len() != 4 { return Err(ERR_STR); }
+                if pvec.len() != 4 {
+                    return Err(ERR_STR);
+                }
                 read_u32_be(&pvec[..])
             }
-            Err(_) => return Err(ERR_STR)
+            Err(_) => return Err(ERR_STR),
         },
-        None => return Err(ERR_STR)
+        None => return Err(ERR_STR),
     };
 
     // Salt
     let salt = match iter.next() {
         Some(sstr) => match base64::decode(sstr) {
             Ok(salt) => salt,
-            Err(_) => return Err(ERR_STR)
+            Err(_) => return Err(ERR_STR),
         },
-        None => return Err(ERR_STR)
+        None => return Err(ERR_STR),
     };
 
     // Hashed value
     let hash = match iter.next() {
         Some(hstr) => match base64::decode(hstr) {
             Ok(hash) => hash,
-            Err(_) => return Err(ERR_STR)
+            Err(_) => return Err(ERR_STR),
         },
-        None => return Err(ERR_STR)
+        None => return Err(ERR_STR),
     };
 
     // Make sure that the input ends with a "$"
     match iter.next() {
-        Some(x) => if x != "" { return Err(ERR_STR); },
-        None => return Err(ERR_STR)
+        Some(x) => {
+            if x != "" {
+                return Err(ERR_STR);
+            }
+        }
+        None => return Err(ERR_STR),
     }
 
     // Make sure there is no trailing data after the final "$"
     match iter.next() {
         Some(_) => return Err(ERR_STR),
-        None => { }
+        None => {}
     }
 
     let mut mac = Hmac::new(Sha256::new(), password.as_bytes());
@@ -250,15 +263,15 @@ pub fn pbkdf2_check(password: &str, hashed_value: &str) -> Result<bool, &'static
 mod test {
     use std::iter::repeat;
 
-    use pbkdf2::{pbkdf2, pbkdf2_simple, pbkdf2_check};
     use hmac::Hmac;
+    use pbkdf2::{pbkdf2, pbkdf2_check, pbkdf2_simple};
     use sha1::Sha1;
 
     struct Test {
         password: Vec<u8>,
         salt: Vec<u8>,
         c: u32,
-        expected: Vec<u8>
+        expected: Vec<u8>,
     }
 
     // Test vectors from http://tools.ietf.org/html/rfc6070. The 4th test vector is omitted because
@@ -271,45 +284,46 @@ mod test {
                 salt: b"salt".to_vec(),
                 c: 1,
                 expected: vec![
-                    0x0c, 0x60, 0xc8, 0x0f, 0x96, 0x1f, 0x0e, 0x71,
-                    0xf3, 0xa9, 0xb5, 0x24, 0xaf, 0x60, 0x12, 0x06,
-                    0x2f, 0xe0, 0x37, 0xa6 ]
+                    0x0c, 0x60, 0xc8, 0x0f, 0x96, 0x1f, 0x0e, 0x71, 0xf3, 0xa9, 0xb5, 0x24, 0xaf,
+                    0x60, 0x12, 0x06, 0x2f, 0xe0, 0x37, 0xa6,
+                ],
             },
             Test {
                 password: b"password".to_vec(),
                 salt: b"salt".to_vec(),
                 c: 2,
                 expected: vec![
-                    0xea, 0x6c, 0x01, 0x4d, 0xc7, 0x2d, 0x6f, 0x8c,
-                    0xcd, 0x1e, 0xd9, 0x2a, 0xce, 0x1d, 0x41, 0xf0,
-                    0xd8, 0xde, 0x89, 0x57 ]
+                    0xea, 0x6c, 0x01, 0x4d, 0xc7, 0x2d, 0x6f, 0x8c, 0xcd, 0x1e, 0xd9, 0x2a, 0xce,
+                    0x1d, 0x41, 0xf0, 0xd8, 0xde, 0x89, 0x57,
+                ],
             },
             Test {
                 password: b"password".to_vec(),
                 salt: b"salt".to_vec(),
                 c: 4096,
                 expected: vec![
-                    0x4b, 0x00, 0x79, 0x01, 0xb7, 0x65, 0x48, 0x9a,
-                    0xbe, 0xad, 0x49, 0xd9, 0x26, 0xf7, 0x21, 0xd0,
-                    0x65, 0xa4, 0x29, 0xc1 ]
+                    0x4b, 0x00, 0x79, 0x01, 0xb7, 0x65, 0x48, 0x9a, 0xbe, 0xad, 0x49, 0xd9, 0x26,
+                    0xf7, 0x21, 0xd0, 0x65, 0xa4, 0x29, 0xc1,
+                ],
             },
             Test {
                 password: b"passwordPASSWORDpassword".to_vec(),
                 salt: b"saltSALTsaltSALTsaltSALTsaltSALTsalt".to_vec(),
                 c: 4096,
                 expected: vec![
-                    0x3d, 0x2e, 0xec, 0x4f, 0xe4, 0x1c, 0x84, 0x9b,
-                    0x80, 0xc8, 0xd8, 0x36, 0x62, 0xc0, 0xe4, 0x4a,
-                    0x8b, 0x29, 0x1a, 0x96, 0x4c, 0xf2, 0xf0, 0x70, 0x38 ]
+                    0x3d, 0x2e, 0xec, 0x4f, 0xe4, 0x1c, 0x84, 0x9b, 0x80, 0xc8, 0xd8, 0x36, 0x62,
+                    0xc0, 0xe4, 0x4a, 0x8b, 0x29, 0x1a, 0x96, 0x4c, 0xf2, 0xf0, 0x70, 0x38,
+                ],
             },
             Test {
                 password: vec![112, 97, 115, 115, 0, 119, 111, 114, 100],
                 salt: vec![115, 97, 0, 108, 116],
                 c: 4096,
                 expected: vec![
-                    0x56, 0xfa, 0x6a, 0xa7, 0x55, 0x48, 0x09, 0x9d,
-                    0xcc, 0x37, 0xd7, 0xf0, 0x34, 0x25, 0xe0, 0xc3 ]
-            }
+                    0x56, 0xfa, 0x6a, 0xa7, 0x55, 0x48, 0x09, 0x9d, 0xcc, 0x37, 0xd7, 0xf0, 0x34,
+                    0x25, 0xe0, 0xc3,
+                ],
+            },
         ]
     }
 
@@ -337,20 +351,20 @@ mod test {
 
         match pbkdf2_check(password, &out1[..]) {
             Ok(r) => assert!(r),
-            Err(_) => panic!()
+            Err(_) => panic!(),
         }
         match pbkdf2_check(password, &out2[..]) {
             Ok(r) => assert!(r),
-            Err(_) => panic!()
+            Err(_) => panic!(),
         }
 
         match pbkdf2_check("wrong", &out1[..]) {
             Ok(r) => assert!(!r),
-            Err(_) => panic!()
+            Err(_) => panic!(),
         }
         match pbkdf2_check("wrong", &out2[..]) {
             Ok(r) => assert!(!r),
-            Err(_) => panic!()
+            Err(_) => panic!(),
         }
     }
 }

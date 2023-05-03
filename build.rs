@@ -20,8 +20,7 @@ fn main() {
             config.define("X64", None);
         }
         config.compile("lib_rust_crypto_helpers.a");
-    }
-    else {
+    } else {
         let mut cfg = gcc::Config::new();
         cfg.file("src/util_helpers.c");
         cfg.file("src/aesni_helpers.c");
@@ -38,4 +37,3 @@ fn main() {
         cfg.compile("lib_rust_crypto_helpers.a");
     }
 }
-
