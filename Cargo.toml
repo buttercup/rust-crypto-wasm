@@ -21,7 +21,6 @@ gcc = "^0.3"
 
 [dependencies]
 libc = { version = "^0.2", default-features = false }
-time = "^0.2"
 rand = "^0.3"
 base64 = "^0.5"
 hex = "^0.2"

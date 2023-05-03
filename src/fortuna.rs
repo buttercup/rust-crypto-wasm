@@ -44,10 +44,11 @@
  * say) then you need to EXPLICITLY RESEED THE RNG AFTER FORKING.
  */
 
+use std::time::Instant;
+
 use cryptoutil::copy_memory;
 
 use rand::{Rng, SeedableRng};
-use time::precise_time_s;
 
 use aessafe::AesSafe256Encryptor;
 use cryptoutil::read_u32_le;
@@ -184,7 +185,7 @@ pub struct Fortuna {
     pool: [Pool; NUM_POOLS],
     generator: FortunaGenerator,
     reseed_count: u32,
-    last_reseed_time: f64,
+    last_reseed_time: Option<Instant>,
 }
 
 impl Fortuna {
@@ -194,7 +195,7 @@ impl Fortuna {
             pool: [Pool::new(); NUM_POOLS],
             generator: FortunaGenerator::new(),
             reseed_count: 0,
-            last_reseed_time: 0.0,
+            last_reseed_time: None,
         }
     }
 
@@ -220,10 +221,13 @@ impl Rng for Fortuna {
     /// pool, this function will fail the task.
     fn fill_bytes(&mut self, dest: &mut [u8]) {
         // Reseed if necessary
-        let now = precise_time_s();
-        if self.pool[0].count >= MIN_POOL_SIZE && now - self.last_reseed_time > 0.1 {
+        if self.pool[0].count >= MIN_POOL_SIZE
+            && self
+                .last_reseed_time
+                .map_or(true, |t| t.elapsed().as_millis() > 100)
+        {
             self.reseed_count += 1;
-            self.last_reseed_time = now;
+            self.last_reseed_time = Some(Instant::now());
             // Compute key as Sha256d( key || s )
             let mut hash = [0; (32 * NUM_POOLS)];
             let mut n_pools = 0;
@@ -261,14 +265,14 @@ impl<'a> SeedableRng<&'a [u8]> for Fortuna {
 
     fn reseed(&mut self, seed: &'a [u8]) {
         self.reseed_count += 1;
-        self.last_reseed_time = precise_time_s();
+        self.last_reseed_time = Some(Instant::now());
         self.generator.reseed(seed);
     }
 }
 
 #[cfg(test)]
 fn test_force_reseed(f: &mut Fortuna) {
-    f.last_reseed_time -= 0.2;
+    f.last_reseed_time = None
 }
 
 #[cfg(test)]

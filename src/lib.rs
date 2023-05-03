@@ -10,7 +10,6 @@ extern crate base64;
 extern crate hex;
 extern crate libc;
 extern crate rand;
-extern crate time;
 
 #[cfg(all(test, feature = "with-bench"))]
 extern crate test;
