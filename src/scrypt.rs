@@ -276,7 +276,7 @@ pub fn scrypt(password: &[u8], salt: &[u8], params: &ScryptParams, output: &mut 
  *
  */
 pub fn scrypt_simple(password: &str, params: &ScryptParams) -> io::Result<String> {
-    let mut rng = try!(OsRng::new());
+    let mut rng = OsRng::new()?;
 
     // 128-bit salt
     let salt: Vec<u8> = rng.gen_iter::<u8>().take(16).collect();

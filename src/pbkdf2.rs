@@ -130,7 +130,7 @@ pub fn pbkdf2<M: Mac>(mac: &mut M, salt: &[u8], c: u32, output: &mut [u8]) {
  *
  */
 pub fn pbkdf2_simple(password: &str, c: u32) -> io::Result<String> {
-    let mut rng = try!(OsRng::new());
+    let mut rng = OsRng::new()?;
 
     // 128-bit salt
     let salt: Vec<u8> = rng.gen_iter::<u8>().take(16).collect();
