@@ -22,9 +22,9 @@
  * calling the `reset` method.
  */
 
-
-use cryptoutil::{write_u32_le, read_u32v_le, add_bytes_to_bits, FixedBuffer,
-    FixedBuffer64, StandardPadding};
+use cryptoutil::{
+    add_bytes_to_bits, read_u32v_le, write_u32_le, FixedBuffer, FixedBuffer64, StandardPadding,
+};
 use digest::Digest;
 
 // Some unexported constants
@@ -345,7 +345,6 @@ impl Ripemd160 {
 }
 
 impl Digest for Ripemd160 {
-
     /**
      * Resets the hash to its original state also clearing the buffer.
      * To be used in between hashing separate messages to avoid having
@@ -371,8 +370,9 @@ impl Digest for Ripemd160 {
         // Assumes that msg.len() can be converted to u64 without overflow
         self.length_bits = add_bytes_to_bits(self.length_bits, msg.len() as u64);
         let st_h = &mut self.h;
-        self.buffer.input(msg, |d: &[u8]| {process_msg_block(d, &mut *st_h);}
-        );
+        self.buffer.input(msg, |d: &[u8]| {
+            process_msg_block(d, &mut *st_h);
+        });
     }
 
     /**
@@ -380,13 +380,13 @@ impl Digest for Ripemd160 {
      * Note: `out` must be at least 20 bytes (160 bits)
      */
     fn result(&mut self, out: &mut [u8]) {
-
         if !self.computed {
             let st_h = &mut self.h;
-            self.buffer.standard_padding(8, |d: &[u8]| { process_msg_block(d, &mut *st_h) });
+            self.buffer
+                .standard_padding(8, |d: &[u8]| process_msg_block(d, &mut *st_h));
 
             write_u32_le(self.buffer.next(4), self.length_bits as u32);
-            write_u32_le(self.buffer.next(4), (self.length_bits >> 32) as u32 );
+            write_u32_le(self.buffer.next(4), (self.length_bits >> 32) as u32);
             process_msg_block(self.buffer.full_buffer(), st_h);
 
             self.computed = true;
@@ -402,12 +402,16 @@ impl Digest for Ripemd160 {
     /**
      * Returns the size of the digest in bits
      */
-    fn output_bits(&self) -> usize { 160 }
+    fn output_bits(&self) -> usize {
+        160
+    }
 
     /**
      * Returns the block size the hash operates on in bytes
      */
-    fn block_size(&self) -> usize { 64 }
+    fn block_size(&self) -> usize {
+        64
+    }
 }
 
 #[cfg(test)]
@@ -430,46 +434,33 @@ mod tests {
             Test {
                 input: "abc",
                 output: vec![
-                    0x8eu8, 0xb2u8, 0x08u8, 0xf7u8,
-                    0xe0u8, 0x5du8, 0x98u8, 0x7au8,
-                    0x9bu8, 0x04u8, 0x4au8, 0x8eu8,
-                    0x98u8, 0xc6u8, 0xb0u8, 0x87u8,
-                    0xf1u8, 0x5au8, 0x0bu8, 0xfcu8,
+                    0x8eu8, 0xb2u8, 0x08u8, 0xf7u8, 0xe0u8, 0x5du8, 0x98u8, 0x7au8, 0x9bu8, 0x04u8,
+                    0x4au8, 0x8eu8, 0x98u8, 0xc6u8, 0xb0u8, 0x87u8, 0xf1u8, 0x5au8, 0x0bu8, 0xfcu8,
                 ],
-                output_str: "8eb208f7e05d987a9b044a8e98c6b087f15a0bfc"
+                output_str: "8eb208f7e05d987a9b044a8e98c6b087f15a0bfc",
             },
             Test {
-                input:
-                     "abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq",
+                input: "abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq",
                 output: vec![
-                    0x12u8, 0xa0u8, 0x53u8, 0x38u8,
-                    0x4au8, 0x9cu8, 0x0cu8, 0x88u8,
-                    0xe4u8, 0x05u8, 0xa0u8, 0x6cu8,
-                    0x27u8, 0xdcu8, 0xf4u8, 0x9au8,
-                    0xdau8, 0x62u8, 0xebu8, 0x2bu8,
+                    0x12u8, 0xa0u8, 0x53u8, 0x38u8, 0x4au8, 0x9cu8, 0x0cu8, 0x88u8, 0xe4u8, 0x05u8,
+                    0xa0u8, 0x6cu8, 0x27u8, 0xdcu8, 0xf4u8, 0x9au8, 0xdau8, 0x62u8, 0xebu8, 0x2bu8,
                 ],
-                output_str: "12a053384a9c0c88e405a06c27dcf49ada62eb2b"
+                output_str: "12a053384a9c0c88e405a06c27dcf49ada62eb2b",
             },
             // Examples from wikipedia
             Test {
                 input: "The quick brown fox jumps over the lazy dog",
                 output: vec![
-                    0x37u8, 0xf3u8, 0x32u8, 0xf6u8,
-                    0x8du8, 0xb7u8, 0x7bu8, 0xd9u8,
-                    0xd7u8, 0xedu8, 0xd4u8, 0x96u8,
-                    0x95u8, 0x71u8, 0xadu8, 0x67u8,
-                    0x1cu8, 0xf9u8, 0xddu8, 0x3bu8,
+                    0x37u8, 0xf3u8, 0x32u8, 0xf6u8, 0x8du8, 0xb7u8, 0x7bu8, 0xd9u8, 0xd7u8, 0xedu8,
+                    0xd4u8, 0x96u8, 0x95u8, 0x71u8, 0xadu8, 0x67u8, 0x1cu8, 0xf9u8, 0xddu8, 0x3bu8,
                 ],
                 output_str: "37f332f68db77bd9d7edd4969571ad671cf9dd3b",
             },
             Test {
                 input: "The quick brown fox jumps over the lazy cog",
                 output: vec![
-                    0x13u8, 0x20u8, 0x72u8, 0xdfu8,
-                    0x69u8, 0x09u8, 0x33u8, 0x83u8,
-                    0x5eu8, 0xb8u8, 0xb6u8, 0xadu8,
-                    0x0bu8, 0x77u8, 0xe7u8, 0xb6u8,
-                    0xf1u8, 0x4au8, 0xcau8, 0xd7u8,
+                    0x13u8, 0x20u8, 0x72u8, 0xdfu8, 0x69u8, 0x09u8, 0x33u8, 0x83u8, 0x5eu8, 0xb8u8,
+                    0xb6u8, 0xadu8, 0x0bu8, 0x77u8, 0xe7u8, 0xb6u8, 0xf1u8, 0x4au8, 0xcau8, 0xd7u8,
                 ],
                 output_str: "132072df690933835eb8b6ad0b77e7b6f14acad7",
             },
@@ -491,7 +482,6 @@ mod tests {
 
             sh.reset();
         }
-
 
         // Test that it works when accepting the message in pieces
         for t in tests.iter() {
@@ -516,47 +506,43 @@ mod tests {
     #[test]
     fn test_1million_random_ripemd160() {
         let mut sh = Ripemd160::new();
-        test_digest_1million_random(
-            &mut sh,
-            64,
-            "52783243c1697bdbe16d37f97f68f08325dc1528");
+        test_digest_1million_random(&mut sh, 64, "52783243c1697bdbe16d37f97f68f08325dc1528");
     }
 }
 
 #[cfg(all(test, feature = "with-bench"))]
 mod bench {
-    use test::Bencher;
     use digest::Digest;
     use ripemd160::Ripemd160;
+    use test::Bencher;
 
     #[bench]
-    pub fn ripemd160_10(bh: & mut Bencher) {
+    pub fn ripemd160_10(bh: &mut Bencher) {
         let mut sh = Ripemd160::new();
         let bytes = [1u8; 10];
-        bh.iter( || {
+        bh.iter(|| {
             sh.input(&bytes);
         });
         bh.bytes = bytes.len() as u64;
     }
 
     #[bench]
-    pub fn ripemd160_1k(bh: & mut Bencher) {
+    pub fn ripemd160_1k(bh: &mut Bencher) {
         let mut sh = Ripemd160::new();
         let bytes = [1u8; 1024];
-        bh.iter( || {
+        bh.iter(|| {
             sh.input(&bytes);
         });
         bh.bytes = bytes.len() as u64;
     }
 
     #[bench]
-    pub fn ripemd160_64k(bh: & mut Bencher) {
+    pub fn ripemd160_64k(bh: &mut Bencher) {
         let mut sh = Ripemd160::new();
         let bytes = [1u8; 65536];
-        bh.iter( || {
+        bh.iter(|| {
             sh.input(&bytes);
         });
         bh.bytes = bytes.len() as u64;
     }
-
 }

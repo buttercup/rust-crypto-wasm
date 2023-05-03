@@ -7,18 +7,19 @@
 /// This module just implements a simple verison of step_by() since
 /// the function from the standard library is currently unstable.
 /// This should be removed once that function becomes stable.
-
 use std::ops::{Add, Range};
 
 #[derive(Clone)]
 pub struct StepUp<T> {
     next: T,
     end: T,
-    ammount: T
+    ammount: T,
 }
 
-impl <T> Iterator for StepUp<T> where
-        T: Add<T, Output = T> + PartialOrd + Copy {
+impl<T> Iterator for StepUp<T>
+where
+    T: Add<T, Output = T> + PartialOrd + Copy,
+{
     type Item = T;
 
     #[inline]
@@ -37,14 +38,15 @@ pub trait RangeExt<T> {
     fn step_up(self, ammount: T) -> StepUp<T>;
 }
 
-impl <T> RangeExt<T> for Range<T> where
-        T: Add<T, Output = T> + PartialOrd + Copy {
+impl<T> RangeExt<T> for Range<T>
+where
+    T: Add<T, Output = T> + PartialOrd + Copy,
+{
     fn step_up(self, ammount: T) -> StepUp<T> {
         StepUp {
             next: self.start,
             end: self.end,
-            ammount: ammount
+            ammount: ammount,
         }
     }
 }
-

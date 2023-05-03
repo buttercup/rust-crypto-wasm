@@ -17,11 +17,10 @@ name = "crypto"
 with-bench = []
 
 [build-dependencies]
-gcc = "^0.3"
+cc = "^1.0.79"
 
 [dependencies]
 libc = { version = "^0.2", default-features = false }
-time = "^0.1"
 rand = "^0.3"
 base64 = "^0.5"
 hex = "^0.2"

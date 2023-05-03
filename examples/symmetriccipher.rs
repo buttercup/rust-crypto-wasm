@@ -7,22 +7,22 @@
 extern crate crypto;
 extern crate rand;
 
-use crypto::{ symmetriccipher, buffer, aes, blockmodes };
-use crypto::buffer::{ ReadBuffer, WriteBuffer, BufferResult };
+use crypto::buffer::{BufferResult, ReadBuffer, WriteBuffer};
+use crypto::{aes, blockmodes, buffer, symmetriccipher};
 
-use rand::{ Rng, OsRng };
+use rand::{OsRng, Rng};
 
 // Encrypt a buffer with the given key and iv using
 // AES-256/CBC/Pkcs encryption.
-fn encrypt(data: &[u8], key: &[u8], iv: &[u8]) -> Result<Vec<u8>, symmetriccipher::SymmetricCipherError> {
-
+fn encrypt(
+    data: &[u8],
+    key: &[u8],
+    iv: &[u8],
+) -> Result<Vec<u8>, symmetriccipher::SymmetricCipherError> {
     // Create an encryptor instance of the best performing
     // type available for the platform.
-    let mut encryptor = aes::cbc_encryptor(
-            aes::KeySize::KeySize256,
-            key,
-            iv,
-            blockmodes::PkcsPadding);
+    let mut encryptor =
+        aes::cbc_encryptor(aes::KeySize::KeySize256, key, iv, blockmodes::PkcsPadding);
 
     // Each encryption operation encrypts some data from
     // an input buffer into an output buffer. Those buffers
@@ -55,17 +55,23 @@ fn encrypt(data: &[u8], key: &[u8], iv: &[u8]) -> Result<Vec<u8>, symmetricciphe
     // us that it stopped processing data due to not having any more data in the
     // input buffer.
     loop {
-        let result = try!(encryptor.encrypt(&mut read_buffer, &mut write_buffer, true));
+        let result = encryptor.encrypt(&mut read_buffer, &mut write_buffer, true)?;
 
         // "write_buffer.take_read_buffer().take_remaining()" means:
         // from the writable buffer, create a new readable buffer which
         // contains all data that has been written, and then access all
         // of that data as a slice.
-        final_result.extend(write_buffer.take_read_buffer().take_remaining().iter().map(|&i| i));
+        final_result.extend(
+            write_buffer
+                .take_read_buffer()
+                .take_remaining()
+                .iter()
+                .map(|&i| i),
+        );
 
         match result {
             BufferResult::BufferUnderflow => break,
-            BufferResult::BufferOverflow => { }
+            BufferResult::BufferOverflow => {}
         }
     }
 
@@ -79,12 +85,13 @@ fn encrypt(data: &[u8], key: &[u8], iv: &[u8]) -> Result<Vec<u8>, symmetricciphe
 // comments in that function. In non-example code, if desired, it is possible to
 // share much of the implementation using closures to hide the operation
 // being performed. However, such code would make this example less clear.
-fn decrypt(encrypted_data: &[u8], key: &[u8], iv: &[u8]) -> Result<Vec<u8>, symmetriccipher::SymmetricCipherError> {
-    let mut decryptor = aes::cbc_decryptor(
-            aes::KeySize::KeySize256,
-            key,
-            iv,
-            blockmodes::PkcsPadding);
+fn decrypt(
+    encrypted_data: &[u8],
+    key: &[u8],
+    iv: &[u8],
+) -> Result<Vec<u8>, symmetriccipher::SymmetricCipherError> {
+    let mut decryptor =
+        aes::cbc_decryptor(aes::KeySize::KeySize256, key, iv, blockmodes::PkcsPadding);
 
     let mut final_result = Vec::<u8>::new();
     let mut read_buffer = buffer::RefReadBuffer::new(encrypted_data);
@@ -92,11 +99,17 @@ fn decrypt(encrypted_data: &[u8], key: &[u8], iv: &[u8]) -> Result<Vec<u8>, symm
     let mut write_buffer = buffer::RefWriteBuffer::new(&mut buffer);
 
     loop {
-        let result = try!(decryptor.decrypt(&mut read_buffer, &mut write_buffer, true));
-        final_result.extend(write_buffer.take_read_buffer().take_remaining().iter().map(|&i| i));
+        let result = decryptor.decrypt(&mut read_buffer, &mut write_buffer, true)?;
+        final_result.extend(
+            write_buffer
+                .take_read_buffer()
+                .take_remaining()
+                .iter()
+                .map(|&i| i),
+        );
         match result {
             BufferResult::BufferUnderflow => break,
-            BufferResult::BufferOverflow => { }
+            BufferResult::BufferOverflow => {}
         }
     }
 
