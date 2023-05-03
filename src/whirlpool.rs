@@ -35,9 +35,10 @@ assert_eq!(result,
 ```
 */
 
+use std::mem;
+
 use cryptoutil::{write_u64_be, FixedBuffer, FixedBuffer64};
 use digest::Digest;
-use std::mem::uninitialized;
 
 #[derive(Clone, Copy)]
 pub struct Whirlpool {
@@ -156,10 +157,10 @@ impl Digest for Whirlpool {
 }
 
 fn process_buffer(hash: &mut [u64; 8], buffer: &[u8]) {
-    let mut k: [u64; 8] = unsafe { uninitialized() };
-    let mut block: [u64; 8] = unsafe { uninitialized() };
-    let mut state: [u64; 8] = unsafe { uninitialized() };
-    let mut l: [u64; 8] = unsafe { uninitialized() };
+    let mut k: [u64; 8] = unsafe { mem::MaybeUninit::uninit().assume_init() };
+    let mut block: [u64; 8] = unsafe { mem::MaybeUninit::uninit().assume_init() };
+    let mut state: [u64; 8] = unsafe { mem::MaybeUninit::uninit().assume_init() };
+    let mut l: [u64; 8] = unsafe { mem::MaybeUninit::uninit().assume_init() };
 
     for i in 0..8 {
         block[i] = ((buffer[i * 8 + 0] as u64) << 56)

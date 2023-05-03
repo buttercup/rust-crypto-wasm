@@ -47,7 +47,7 @@ impl Gf128 {
 
     fn to_bytes(&self) -> [u8; 16] {
         let simd::u32x4(a, b, c, d) = self.d;
-        let mut result: [u8; 16] = unsafe { mem::uninitialized() };
+        let mut result: [u8; 16] = unsafe { mem::MaybeUninit::uninit().assume_init() };
 
         write_u32_be(&mut result[0..4], d);
         write_u32_be(&mut result[4..8], c);
@@ -181,7 +181,7 @@ impl Ghash {
     #[inline]
     pub fn new(h: &[u8]) -> Ghash {
         assert!(h.len() == 16);
-        let mut table: [Gf128; 128] = unsafe { mem::uninitialized() };
+        let mut table: [Gf128; 128] = unsafe { mem::MaybeUninit::uninit().assume_init() };
 
         // Precompute values for h * x^0 to h * x^127
         let mut h = Gf128::from_bytes(h);
