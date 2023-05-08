@@ -71,7 +71,7 @@ void rust_crypto_aesni_setup_working_key_128(
             pxor %%xmm2, %%xmm1; \
             movdqu %%xmm1, (%0); \
             add $0x10, %0; \
-            ret; \            \
+            ret; \
             2: \
         "
     : "+r" (round_key)
