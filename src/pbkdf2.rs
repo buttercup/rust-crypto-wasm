@@ -14,8 +14,6 @@ use std::io;
 use std::iter::repeat;
 
 use base64::{self, Engine};
-use rand::{OsRng, Rng};
-
 use cryptoutil::{read_u32_be, write_u32_be};
 use hmac::Hmac;
 use mac::Mac;
@@ -130,10 +128,9 @@ pub fn pbkdf2<M: Mac>(mac: &mut M, salt: &[u8], c: u32, output: &mut [u8]) {
  *
  */
 pub fn pbkdf2_simple(password: &str, c: u32) -> io::Result<String> {
-    let mut rng = OsRng::new()?;
-
     // 128-bit salt
-    let salt: Vec<u8> = rng.gen_iter::<u8>().take(16).collect();
+    let mut salt = [0u8, 16];
+    getrandom::getrandom(&mut salt)?;
 
     // 256-bit derived key
     let mut dk = [0u8; 32];

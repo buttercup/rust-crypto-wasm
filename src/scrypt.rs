@@ -19,8 +19,6 @@ use std::iter::repeat;
 use std::mem::size_of;
 
 use base64::{self, Engine};
-use rand::{OsRng, Rng};
-
 use cryptoutil::{read_u32_le, read_u32v_le, write_u32_le};
 use hmac::Hmac;
 use pbkdf2::pbkdf2;
@@ -276,15 +274,14 @@ pub fn scrypt(password: &[u8], salt: &[u8], params: &ScryptParams, output: &mut 
  *
  */
 pub fn scrypt_simple(password: &str, params: &ScryptParams) -> io::Result<String> {
-    let mut rng = OsRng::new()?;
-
     // 128-bit salt
-    let salt: Vec<u8> = rng.gen_iter::<u8>().take(16).collect();
+    let mut salt = [0u8, 16];
+    getrandom::getrandom(&mut salt)?;
 
     // 256-bit derived key
     let mut dk = [0u8; 32];
 
-    scrypt(password.as_bytes(), &*salt, params, &mut dk);
+    scrypt(password.as_bytes(), &salt, params, &mut dk);
 
     let mut result = "$rscrypt$".to_string();
     if params.r < 256 && params.p < 256 {
