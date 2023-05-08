@@ -13,7 +13,7 @@ use cryptoutil::copy_memory;
 use std::io;
 use std::iter::repeat;
 
-use base64;
+use base64::{self, Engine};
 use rand::{OsRng, Rng};
 
 use cryptoutil::{read_u32_be, write_u32_be};
@@ -145,11 +145,11 @@ pub fn pbkdf2_simple(password: &str, c: u32) -> io::Result<String> {
     let mut result = "$rpbkdf2$0$".to_string();
     let mut tmp = [0u8; 4];
     write_u32_be(&mut tmp, c);
-    result.push_str(&base64::encode_config(&tmp, base64::STANDARD)[..]);
+    result.push_str(&base64::engine::general_purpose::STANDARD.encode(&tmp));
     result.push('$');
-    result.push_str(&base64::encode_config(&salt, base64::STANDARD)[..]);
+    result.push_str(&base64::engine::general_purpose::STANDARD.encode(&salt));
     result.push('$');
-    result.push_str(&base64::encode_config(&dk, base64::STANDARD)[..]);
+    result.push_str(&base64::engine::general_purpose::STANDARD.encode(&dk));
     result.push('$');
 
     Ok(result)
@@ -201,7 +201,7 @@ pub fn pbkdf2_check(password: &str, hashed_value: &str) -> Result<bool, &'static
 
     // Parse the iteration count
     let c = match iter.next() {
-        Some(pstr) => match base64::decode(pstr) {
+        Some(pstr) => match base64::engine::general_purpose::STANDARD.decode(pstr) {
             Ok(pvec) => {
                 if pvec.len() != 4 {
                     return Err(ERR_STR);
@@ -215,7 +215,7 @@ pub fn pbkdf2_check(password: &str, hashed_value: &str) -> Result<bool, &'static
 
     // Salt
     let salt = match iter.next() {
-        Some(sstr) => match base64::decode(sstr) {
+        Some(sstr) => match base64::engine::general_purpose::STANDARD.decode(sstr) {
             Ok(salt) => salt,
             Err(_) => return Err(ERR_STR),
         },
@@ -224,7 +224,7 @@ pub fn pbkdf2_check(password: &str, hashed_value: &str) -> Result<bool, &'static
 
     // Hashed value
     let hash = match iter.next() {
-        Some(hstr) => match base64::decode(hstr) {
+        Some(hstr) => match base64::engine::general_purpose::STANDARD.decode(hstr) {
             Ok(hash) => hash,
             Err(_) => return Err(ERR_STR),
         },
