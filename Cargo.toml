@@ -21,6 +21,7 @@ cc = "^1.0.79"
 
 [dependencies]
 libc = { version = "^0.2", default-features = false }
-rand = "^0.3"
-base64 = "^0.5"
-hex = "^0.2"
+rand = "^0.4"
+getrandom = { version = "^0.2", features = ["std"] }
+base64 = "^0.21"
+hex = "^0.4.3"

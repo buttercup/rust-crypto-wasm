@@ -449,7 +449,6 @@ impl Clone for Sha3 {
 #[cfg(test)]
 mod tests {
     use digest::Digest;
-    use hex::{self, ToHex};
     use sha3::{Sha3, Sha3Mode};
 
     struct Test {
@@ -471,8 +470,8 @@ mod tests {
             let mut out_str = vec![0u8; t.output_str.len() / 2];
 
             sh.result(&mut out_str);
-            println!("{}", &out_str.to_hex());
-            assert!(&out_str.to_hex() == t.output_str);
+            println!("{}", hex::encode(&out_str));
+            assert!(hex::encode(&out_str) == t.output_str);
 
             sh.reset();
         }
@@ -491,7 +490,7 @@ mod tests {
 
             sh.result(&mut out_str);
 
-            assert!(&out_str.to_hex() == t.output_str);
+            assert!(hex::encode(&out_str) == t.output_str);
 
             sh.reset();
         }
